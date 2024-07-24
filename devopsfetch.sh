@@ -134,7 +134,6 @@ show_nginx() {
     format_table "$header" "$data"
 }
 
-
 # Function to show user login information
 show_users() {
     if [ -z "$1" ]; then
