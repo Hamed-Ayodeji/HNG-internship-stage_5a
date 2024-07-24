@@ -58,7 +58,11 @@ sudo cp devopsfetch.sh /usr/local/bin/devopsfetch || error_exit "Failed to copy 
 echo "Making the script executable..."
 sudo chmod +x /usr/local/bin/devopsfetch || error_exit "Failed to make the script executable."
 
-# Set up systemd service
+# Create a log file for debugging
+echo "Creating log file for debugging..."
+sudo bash -c 'echo "Starting devopsfetch service setup..." > /tmp/devopsfetch_service.log'
+
+# Set up systemd service with logging
 echo "Setting up systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/devopsfetch.service >/dev/null
 [Unit]
@@ -69,6 +73,8 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/devopsfetch --all
 Restart=on-failure
+StandardOutput=file:/tmp/devopsfetch_service.log
+StandardError=file:/tmp/devopsfetch_service.log
 
 [Install]
 WantedBy=multi-user.target
@@ -78,5 +84,7 @@ EOF
 echo "Reloading systemd and enabling the service..."
 sudo systemctl daemon-reload || error_exit "Failed to reload systemd."
 sudo systemctl enable devopsfetch || error_exit "Failed to enable devopsfetch service."
+sudo systemctl start devopsfetch || error_exit "Failed to start devopsfetch service."
 
 echo "Installation and setup completed successfully!"
+echo "Check /tmp/devopsfetch_service.log for service output and errors."
