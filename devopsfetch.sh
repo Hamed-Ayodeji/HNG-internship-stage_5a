@@ -131,12 +131,13 @@ show_users() {
 show_time() {
     local start_time="$1"
     local end_time="$2"
-    local max_entries=10  # Limit the number of log entries displayed
 
     if [ -n "$start_time" ] && [ -n "$end_time" ]; then
         echo "Activities from $start_time to $end_time:"
     elif [ -n "$start_time" ]; then
         echo "Activities at $start_time:"
+        # Define an end time slightly after the specific time to capture all activities at that timestamp
+        end_time=$(date -d "$start_time + 1 minute" "+%Y-%m-%d %H:%M:%S")
     else
         echo "Error: Invalid arguments. Please specify a time range or a specific time."
         exit 1
@@ -149,16 +150,12 @@ show_time() {
     if [ -n "$end_time" ]; then
         logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager)
     else
-        logs=$(journalctl --since "$start_time" --until "$start_time" --no-pager)
+        logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager)
     fi
 
-    # Filter and limit the logs
-    # Example filters: Show only ERROR and WARNING logs
-    filtered_logs=$(echo "$logs" | grep -E 'ERROR|WARNING' | tail -n "$max_entries")
-
-    # Check if filtered logs are empty
-    if [ -z "$filtered_logs" ]; then
-        echo "No important logs found for the specified time."
+    # Check if logs are empty
+    if [ -z "$logs" ]; then
+        echo "No logs found for the specified time."
     else
         # Print header
         printf "%-20s | %s\n" "Timestamp" "Log Message"
@@ -172,7 +169,7 @@ show_time() {
 
             # Print formatted line
             printf "%-20s | %s\n" "$timestamp" "$message"
-        done <<< "$filtered_logs"
+        done <<< "$logs"
     fi
 
     echo "======================================"
