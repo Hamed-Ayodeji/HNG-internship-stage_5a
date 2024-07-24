@@ -1,213 +1,167 @@
-# DevOpsFetch: Your All-in-One Server Information Tool
+# DevOpsFetch Documentation
 
-## Table of Contents
+## Overview
 
-1. [Introduction](#introduction)
-2. [What Makes DevOpsFetch Special?](#what-makes-devopsfetch-special)
-3. [Installation](#installation)
-4. [How to Use DevOpsFetch](#how-to-use-devopsfetch)
-5. [Command Examples](#command-examples)
-6. [Continuous Monitoring](#continuous-monitoring)
-7. [Logging](#logging)
-8. [Troubleshooting](#troubleshooting)
-9. [Conclusion](#conclusion)
+`devopsfetch` is a versatile tool designed to retrieve and display server information related to ports, Docker containers, Nginx configurations, user logins, and system activity logs. It is designed to work across multiple Linux distributions by detecting and using the appropriate package management commands. This tool can be run with various options to extract specific data or all available information at once.
 
-## Introduction
+## Features
 
-Imagine you're a chef in a bustling kitchen. You need to know what ingredients you have, what's cooking, and who's doing what. Now, picture your server as that kitchen. **DevOpsFetch** is like your trusty kitchen assistant, giving you all the important information about your server at your fingertips.
-
-**DevOpsFetch** is a comprehensive tool designed for DevOps professionals and system administrators. It serves as a one-stop solution for gathering and monitoring critical server information, including active ports, Docker containers, Nginx configurations, user logins, and system activities.
-
-## What Makes DevOpsFetch Special?
-
-1. **Cross-Distribution Compatibility:** Works seamlessly across various Linux distributions, including Ubuntu, CentOS, Fedora, Arch Linux, and openSUSE. It automatically detects the package manager used by your system and installs the required tools accordingly.
-
-2. **Unified Tool:** Consolidates functionality into a single command-line interface, simplifying the process of obtaining server information and making management easier.
-
-3. **Readable Output:** Presents information in clean, organized tables, ensuring data is easy to interpret and understand.
-
-4. **Continuous Monitoring:** Can run as a background service, continuously monitoring and reporting on server status without manual intervention.
-
-5. **Efficient Logging:** Includes intelligent log management with automatic log rotation and compression to manage disk usage effectively.
+- **Active Ports**: Display active ports and the services using them.
+- **Docker Management**: List Docker images and containers, or show details about a specific container.
+- **Nginx Configurations**: Display configured domains and details from Nginx configuration files.
+- **User Logins**: Show last login times for users or details about a specific user.
+- **System Activity Logs**: Display system activities within a specified time range or at a specific time.
+- **Compatibility**: Works on various Linux distributions, including Ubuntu, CentOS, Fedora, Arch Linux, and SUSE.
 
 ## Installation
 
-### Prerequisites
+The installation script `install.sh` will check for necessary dependencies and install them if not present. It will also set up `devopsfetch` as a systemd service for regular execution.
 
-Before installing DevOpsFetch, ensure you have the following:
-
-- Access to a terminal with superuser privileges.
-- The `install.sh` and `devopsfetch.sh` scripts.
-
-### Steps
+### Installation Steps
 
 1. **Download the Scripts:**
-   - Ensure you have `install.sh` and `devopsfetch.sh` on your server.
+   - Obtain `devopsfetch.sh` and `install.sh`.
 
-2. **Make the Installation Script Executable:**
-
-    ```bash
-    chmod +x install.sh
-    ```
-
-3. **Run the Installation Script:**
+2. **Run the Installation Script:**
 
     ```bash
-    sudo ./install.sh
+    sudo bash install.sh
     ```
 
-The `install.sh` script performs the following:
+   The script performs the following:
 
-- **Dependency Check and Installation:** Detects your Linux distribution, installs necessary tools, and handles package management.
-- **Script Deployment:** Copies `devopsfetch.sh` to `/usr/local/bin` for global access.
-- **Service Configuration:** Sets up a systemd service to run DevOpsFetch as a background process.
-- **Log Rotation Setup:** Configures log rotation to manage log files and prevent excessive disk space usage.
+- Checks and installs required packages: `ss` (via `iproute2`), Docker, Nginx, and `logrotate`.
+- Copies `devopsfetch.sh` to `/usr/local/bin` as `devopsfetch`.
+- Sets up `devopsfetch` as a systemd service with logging enabled.
+- Configures log rotation for `devopsfetch`.
 
-## How to Use DevOpsFetch
+## Usage
 
-Using DevOpsFetch is straightforward. Execute the `devopsfetch` command followed by the desired option. Here are the available options:
+Run `devopsfetch` with various options to retrieve the desired information. Use the `--help` option to display a list of available commands and their usage.
 
-- `-p` or `--port`: Displays information about active ports.
-- `-d` or `--docker`: Provides details about Docker images and containers.
-- `-n` or `--nginx`: Shows Nginx configurations and domains.
-- `-u` or `--users`: Lists users and their last login times.
-- `-t` or `--time`: Shows system activities within a specific time range.
-- `-a` or `--all`: Displays all available information.
-- `-h` or `--help`: Provides help information and usage instructions.
+### Command Options
 
-## Command Examples
+```plaintext
+    Usage: devopsfetch [OPTION]...
+    Retrieve and show server information.
 
-Here are practical examples of how to use DevOpsFetch:
+    Options:
+        -p, --port [PORT]          Show active ports or info about a specific port
+        -d, --docker [CONTAINER]   List Docker images/containers or info about a specific container
+        -n, --nginx [DOMAIN]       Show Nginx domains or config for a specific domain
+        -u, --users [USERNAME]     List users and last login times or info about a specific user
+        -t, --time [START] [END]   Show activities within a specified time range
+        -a, --all                  Show all information
+        -h, --help                 Show this help message
+```
 
-1. **To list all active ports:**
+### Examples
+
+- **Show all active ports and services:**
 
     ```bash
     devopsfetch --port
+    devopsfetch -p
     ```
 
-2. **To get information about port 80 (commonly used for web servers):**
+- **Show detailed information about a specific port (e.g., port 80):**
 
     ```bash
     devopsfetch --port 80
+    devopsfetch -p 80
     ```
 
-3. **To view all Docker containers and images:**
+- **List all Docker images and containers:**
 
     ```bash
     devopsfetch --docker
+    devopsfetch -d
     ```
 
-4. **To get details about a specific Docker container named "my-web-app":**
+- **Show detailed information about a specific Docker container named `specific-container`:**
 
     ```bash
-    devopsfetch --docker my-web-app
+    devopsfetch --docker specific-container
+    devopsfetch -d specific-container
     ```
 
-5. **To list all Nginx domains:**
+- **Show all Nginx domains and their ports:**
 
     ```bash
     devopsfetch --nginx
+    devopsfetch -n
     ```
 
-6. **To view configuration for a specific Nginx domain like "example.com":**
+- **Show detailed configuration for a specific domain (e.g., `example.com`):**
 
     ```bash
     devopsfetch --nginx example.com
+    devopsfetch -n example.com
     ```
 
-7. **To list all users and their last login times:**
+- **List all users and their last login times:**
 
     ```bash
     devopsfetch --users
+    devopsfetch -u
     ```
 
-8. **To get information about a specific user named "john":**
+- **Show detailed information about a specific user (e.g., `john`):**
 
     ```bash
     devopsfetch --users john
+    devopsfetch -u john
     ```
 
-9. **To view activities that occurred on July 18, 2024, between noon and 3 PM:**
+- **Show activities that happened on the server between a specified time range:**
 
     ```bash
     devopsfetch --time "2024-07-18 12:00:00" "2024-07-18 15:00:00"
+    devopsfetch -t "2024-07-18 12:00:00" "2024-07-18 15:00:00"
     ```
 
-10. **To display all available information at once:**
+- **Show activities that happened on the server for a specified time:**
+
+    ```bash
+    devopsfetch --time "2024-07-18 12:00:00"
+    devopsfetch -t "2024-07-18 12:00:00"
+    ```
+
+- **Show all available information at once:**
 
     ```bash
     devopsfetch --all
+    devopsfetch -a
     ```
 
-## Continuous Monitoring
+## System Requirements
 
-DevOpsFetch can be set up to run continuously as a background service. This ensures ongoing monitoring and reporting of your server’s status.
+- Linux distribution with `bash` shell
+- Supported package manager (`apt-get`, `yum`, `dnf`, `pacman`, or `zypper`)
+- Access to the internet for downloading dependencies
+- Root privileges for installation
 
-- **Check if DevOpsFetch is running:**
+## Dependencies
 
-    ```bash
-    sudo systemctl status devopsfetch
-    ```
+The tool depends on the following packages:
 
-- **Start the DevOpsFetch service:**
+- `iproute2`: Provides the `ss` command to show active ports.
+- `docker`: Required to manage Docker images and containers.
+- `nginx`: For displaying Nginx domains and configurations.
+- `logrotate`: To handle log rotation for the service logs.
 
-    ```bash
-    sudo systemctl start devopsfetch
-    ```
+The installation script automatically handles the installation of these dependencies using the system's package manager.
 
-- **Stop the DevOpsFetch service:**
+## Logs and Debugging
 
-    ```bash
-    sudo systemctl stop devopsfetch
-    ```
+- Logs for `devopsfetch` are stored in `/var/log/devopsfetch.log`.
+- Log rotation is set up to keep logs manageable and prevent excessive disk usage.
+- In case of issues, review the logs for errors and debug information.
 
-## Logging
+## License
 
-DevOpsFetch maintains a log of its operations, stored at `/tmp/devopsfetch_service.log`. The logging system features:
-
-- **File Rotation:** Each log file is capped at 100MB. Older logs are compressed to save space.
-- **Retention:** Logs are retained for the past 7 days.
-
-To view the current log:
-
-  ```bash
-  cat /tmp/devopsfetch_service.log
-  ```
-
-## Troubleshooting
-
-If you encounter issues with DevOpsFetch, follow these troubleshooting steps:
-
-1. **Verify the Service Status:**
-
-    ```bash
-    sudo systemctl status devopsfetch
-    ```
-
-2. **Check Service Logs:**
-
-    ```bash
-    journalctl -u devopsfetch
-    ```
-
-3. **Confirm Required Tools Are Installed:**
-
-    ```bash
-    which ss docker nginx logrotate
-    ```
-
-4. **Ensure the Script is Deployed Correctly and is Executable:**
-
-    ```bash
-    ls -l /usr/local/bin/devopsfetch
-    ```
-
-If problems persist, consider reinstalling DevOpsFetch or checking for any error messages that appeared during installation.
+`devopsfetch` is released under the MIT License. You are free to use, modify, and distribute this software with attribution to the original author.
 
 ## Conclusion
 
-**DevOpsFetch** is a robust tool that simplifies server management by consolidating various monitoring and information-gathering functions into a single interface. Its compatibility with multiple Linux distributions, user-friendly output, continuous monitoring capabilities, and efficient logging make it an essential tool for DevOps professionals and system administrators.
-
-Whether you're troubleshooting issues, monitoring system health, or conducting routine checks, DevOpsFetch streamlines the process and provides valuable insights into your server's performance and status.
-
-For further assistance or questions, refer to the troubleshooting section or reach out for support.
+`devopsfetch` is a powerful tool that simplifies the process of retrieving server information across various categories. By using this tool, you can quickly access details about active ports, Docker containers, Nginx configurations, user logins, and system activities. The tool is designed to be user-friendly and works seamlessly across different Linux distributions.
