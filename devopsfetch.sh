@@ -12,7 +12,7 @@ format_table() {
     echo "$separator"
 }
 
-# Function to display active ports with IP addresses
+# Function to show active ports with IP addresses
 show_ports() {
     if [ -z "$1" ]; then
         local ports=$(ss -tuln | awk 'NR>1 {print $5 " " $1}' |
@@ -37,7 +37,7 @@ show_ports() {
     fi
 }
 
-# Function to display Docker images/containers
+# Function to show Docker images/containers
 show_docker() {
     if [ -z "$1" ]; then
         local images=$(docker images --format "table {{.Repository}}  {{.Tag}}  {{.ID}}" |
@@ -66,7 +66,7 @@ show_docker() {
     fi
 }
 
-# Function to display Nginx domains and configurations
+# Function to show Nginx domains and configurations
 show_nginx() {
     local header="Nginx Domains"
     local data=""
@@ -102,12 +102,12 @@ show_nginx() {
         done
     done
 
-    # Remove trailing space and display the formatted table
+    # Remove trailing space and show the formatted table
     data=$(echo "$data" | sed 's/ *$//')
     format_table "$header" "$data"
 }
 
-# Function to display user login information
+# Function to show user login information
 show_users() {
     if [ -z "$1" ]; then
         local users=$(lastlog | awk 'NR>1 {print $1 " " $3 " " $4 " " $5}')
@@ -127,102 +127,104 @@ show_users() {
     fi
 }
 
-# Function to display activities within a time range
+# Function to display activities within a specified time range or a specific time
 show_time() {
-    start_datetime="$1"
-    end_datetime="$2"
+    local start_time="$1"
+    local end_time="$2"
+    local max_entries=10  # Limit the number of log entries displayed
 
-    # Default end datetime to current datetime if not provided
-    if [ -z "$end_datetime" ]; then
-        end_datetime=$(date '+%Y-%m-%d %H:%M:%S')
+    if [ -n "$start_time" ] && [ -n "$end_time" ]; then
+        echo "Activities from $start_time to $end_time:"
+    elif [ -n "$start_time" ]; then
+        echo "Activities at $start_time:"
+    else
+        echo "Error: Invalid arguments. Please specify a time range or a specific time."
+        exit 1
     fi
 
-    echo "Showing activities from $start_datetime to $end_datetime:"
     echo "======================================"
 
-    # Convert date-times to Unix timestamps for comparison
-    start_timestamp=$(date -d "$start_datetime" '+%s' 2>/dev/null)
-    end_timestamp=$(date -d "$end_datetime" '+%s' 2>/dev/null)
-
-    # Check if the provided date format is correct
-    if [ $? -ne 0 ]; then
-        echo "Invalid date format. Please use YYYY-MM-DD HH:MM:SS."
-        return
+    # Fetch logs using journalctl
+    local logs
+    if [ -n "$end_time" ]; then
+        logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager)
+    else
+        logs=$(journalctl --since "$start_time" --until "$start_time" --no-pager)
     fi
 
-    # Iterate over log files (customize this path to match your log file locations)
-    for log_file in /var/log/*; do
-        # Check if the log file is readable
-        if [ ! -r "$log_file" ]; then
-            continue
-        fi
+    # Filter and limit the logs
+    # Example filters: Show only ERROR and WARNING logs
+    filtered_logs=$(echo "$logs" | grep -E 'ERROR|WARNING' | tail -n "$max_entries")
 
-        # Extract logs between the specified timestamps
-        awk -v start="$start_timestamp" -v end="$end_timestamp" '
-        {
-            # Extract the datetime from the log line (customize datetime format based on log file format)
-            # Assuming log format like "2024-07-18 12:34:56"
-            match($0, /^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/, arr)
-            log_datetime = arr[1]
-            if (log_datetime != "") {
-                log_timestamp = mktime(gensub(/[-:]/, " ", "g", log_datetime) " 0")
-                if (log_timestamp >= start && log_timestamp <= end) {
-                    print $0
-                }
-            }
-        }' "$log_file"
-    done
+    # Check if filtered logs are empty
+    if [ -z "$filtered_logs" ]; then
+        echo "No important logs found for the specified time."
+    else
+        # Print header
+        printf "%-20s | %s\n" "Timestamp" "Log Message"
+        echo "--------------------------------------"
+
+        # Print each log entry
+        while IFS= read -r line; do
+            # Extract the timestamp and the message
+            local timestamp=$(echo "$line" | awk '{print $1" "$2}')
+            local message=$(echo "$line" | cut -d ' ' -f 3-)
+
+            # Print formatted line
+            printf "%-20s | %s\n" "$timestamp" "$message"
+        done <<< "$filtered_logs"
+    fi
 
     echo "======================================"
 }
 
 # Help function
-display_help() {
+show_help() {
     cat <<EOF
 Usage: devopsfetch [OPTION]...
-Retrieve and display server information.
+Retrieve and show server information.
 
 Options:
-    -p, --port [PORT]          Display active ports or info about a specific port
+    -p, --port [PORT]          Show active ports or info about a specific port
     -d, --docker [CONTAINER]   List Docker images/containers or info about a specific container
-    -n, --nginx [DOMAIN]       Display Nginx domains or config for a specific domain
+    -n, --nginx [DOMAIN]       Show Nginx domains or config for a specific domain
     -u, --users [USERNAME]     List users and last login times or info about a specific user
-    -t, --time [START] [END]   Display activities within a specified time range
-    -a, --all                  Display all information
-    -h, --help                 Display this help message
+    -t, --time [START] [END]   Show activities within a specified time range
+    -a, --all                  Show all information
+    -h, --help                 Show this help message
 
 Examples:
-    devopsfetch --port                                                  Display all active ports and services
+    devopsfetch --port                                                  Show all active ports and services
     devopsfetch -p
     
-    devopsfetch --port 80                                               Display detailed information about a specific port (e.g., port 80)
+    devopsfetch --port 80                                               Show detailed information about a specific port (e.g., port 80)
     devopsfetch -p 80
     
     devopsfetch --docker                                                List all Docker images and containers
     devopsfetch -d
     
-    devopsfetch --docker specific-container                             Display detailed information about a specific Docker container named specific-container
+    devopsfetch --docker specific-container                             Show detailed information about a specific Docker container named specific-container
     devopsfetch -d specific-container
     
-    devopsfetch --nginx                                                 Display all Nginx domains and their ports
+    devopsfetch --nginx                                                 Show all Nginx domains and their ports
     devopsfetch -n
     
-    devopsfetch --nginx example.com                                     Display detailed configuration for a specific domain (e.g., example.com)
+    devopsfetch --nginx example.com                                     Show detailed configuration for a specific domain (e.g., example.com)
     devopsfetch -n example.com
     
     devopsfetch --users                                                 List all users and their last login times
     devopsfetch -u
     
-    devopsfetch --users john                                            Display detailed information about a specific user (e.g., john)
+    devopsfetch --users john                                            Show detailed information about a specific user (e.g., john)
     devopsfetch -u john
     
-    devopsfetch --time "2024-07-18 12:00:00" "2024-07-18 15:00:00"      Display activities that happened on the server between the specified time range
+    devopsfetch --time "2024-07-18 12:00:00" "2024-07-18 15:00:00"      Show activities that happened on the server between the specified time range
     devopsfetch -t "2024-07-18 12:00:00" "2024-07-18 15:00:00"
     
-    devopsfetch --time "2024-07-18 12:00:00"                            Display activities that happened on the server from the specified time until now
+    devopsfetch --time "2024-07-18 12:00:00"                            Show activities that happened on the server for the specified time
     devopsfetch -t "2024-07-18 12:00:00"
 
-    devopsfetch --all                                                   Display all available information at once
+    devopsfetch --all                                                   Show all available information at once
     devopsfetch -a
 EOF
 }
@@ -265,12 +267,12 @@ main() {
                 all=true
                 ;;
             -h | --help)
-                display_help
+                show_help
                 exit 0
                 ;;
             *)
                 echo "Error: Invalid option $1"
-                echo "Use --help to display the available options."
+                echo "Use --help to show the available options."
                 exit 1
                 ;;
         esac
@@ -279,7 +281,7 @@ main() {
 
     # Check if no command was specified
     if [ -z "$command" ] && ! $all; then
-        display_help
+        show_help
         exit 0
     fi
 
@@ -309,7 +311,7 @@ main() {
                 ;;
             *)
                 echo "Error: No valid command provided."
-                echo "Use --help to display the available options."
+                echo "Use --help to show the available options."
                 ;;
         esac
     fi
