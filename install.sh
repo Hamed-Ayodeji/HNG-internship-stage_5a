@@ -72,7 +72,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/devopsfetch --all
-Restart=on-failure
+Restart=always
 StandardOutput=file:/tmp/devopsfetch_service.log
 StandardError=file:/tmp/devopsfetch_service.log
 
