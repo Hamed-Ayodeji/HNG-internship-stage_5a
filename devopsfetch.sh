@@ -158,7 +158,7 @@ show_users() {
 show_time() {
     local start_time="$1"
     local end_time="$2"
-    local max_entries=20  # Limit the number of log entries displayed
+    local max_entries=60  # Limit the number of log entries displayed
 
     if [ -n "$start_time" ] && [ -n "$end_time" ]; then
         echo "Activities from $start_time to $end_time:"
