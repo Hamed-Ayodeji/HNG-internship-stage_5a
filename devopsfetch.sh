@@ -135,6 +135,11 @@ show_time() {
 
     if [ -n "$start_time" ] && [ -n "$end_time" ]; then
         echo "Activities from $start_time to $end_time:"
+        # Ensure start_time is before end_time
+        if [[ "$(date -d "$start_time" +%s)" -ge "$(date -d "$end_time" +%s)" ]]; then
+            echo "Error: Start time must be before end time."
+            exit 1
+        fi
     elif [ -n "$start_time" ]; then
         echo "Activities at $start_time:"
         # Define an end time slightly after the specific time to capture all activities at that timestamp
@@ -149,18 +154,18 @@ show_time() {
     # Fetch logs using journalctl
     local logs
     if [ -n "$end_time" ]; then
-        logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager)
+        logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager 2>/dev/null)
     else
-        logs=$(journalctl --since "$start_time" --no-pager)
+        logs=$(journalctl --since "$start_time" --no-pager 2>/dev/null)
     fi
 
-    # Limit the output
-    filtered_logs=$(echo "$logs" | tail -n "$max_entries")
-
-    # Check if filtered logs are empty
-    if [ -z "$filtered_logs" ]; then
+    # Check if logs are empty
+    if [ -z "$logs" ]; then
         echo "No logs found for the specified time."
     else
+        # Limit the output
+        filtered_logs=$(echo "$logs" | tail -n "$max_entries")
+
         # Print header
         printf "%-20s | %s\n" "Timestamp" "Log Message"
         echo "--------------------------------------"
