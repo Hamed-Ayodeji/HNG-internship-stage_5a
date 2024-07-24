@@ -55,4 +55,4 @@ EOF
 mkdir -p /var/log
 
 # Run devopsfetch in continuous mode
-/usr/local/bin/devopsfetch --all >> /var/log/devopsfetch.log 2>&1
+/usr/local/bin/devopsfetch --all >> /var/log/syslog 2>&1

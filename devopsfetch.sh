@@ -117,7 +117,7 @@ show_time() {
         echo "Usage: devopsfetch -t [START_DATE] [END_DATE]"
         return
     fi
-    local activities=$(grep -E "^($start_date|$end_date)" /var/log/devopsfetch.log 2>/dev/null |
+    local activities=$(grep -E "^($start_date|$end_date)" /var/log/syslog 2>/dev/null |
         awk '{print $1, $2, $3, $5}' | sort)
     if [ -z "$activities" ]; then
         echo "No activities found in the specified time range."
