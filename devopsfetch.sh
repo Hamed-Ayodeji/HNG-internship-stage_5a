@@ -77,13 +77,13 @@ show_nginx() {
             format_table "Nginx Domains" "$domains"
         fi
     else
-        if ! grep -q "server_name $1;" /etc/nginx/sites-enabled/ 2>/dev/null; then
+        local config=$(grep -R "server_name $1;" /etc/nginx/sites-enabled/ -A 10 2>/dev/null |
+            sed 's/^[[:space:]]*//')
+        if [ -z "$config" ]; then
             echo "Error: Nginx domain $1 is not configured."
             echo "Please verify the domain name and ensure it is correctly configured."
             return
         fi
-        local config=$(grep -R "server_name $1;" /etc/nginx/sites-enabled/ -A 10 2>/dev/null |
-            sed 's/^[[:space:]]*//')
         format_table "Nginx Config for $1" "$config"
     fi
 }
@@ -112,13 +112,29 @@ show_users() {
 show_time() {
     local start_date="$1"
     local end_date="$2"
-    if [ -z "$start_date" ] || [ -z "$end_date" ]; then
-        echo "Error: Both start and end dates are required for time range."
-        echo "Usage: devopsfetch -t [START_DATE] [END_DATE]"
-        return
+
+    # Handle single date input by setting end_date as the same as start_date
+    if [ -z "$end_date" ]; then
+        end_date="$start_date"
     fi
-    local activities=$(grep -E "^($start_date|$end_date)" /var/log/syslog 2>/dev/null |
-        awk '{print $1, $2, $3, $5}' | sort)
+
+    # Search within the time range or specific date
+    local activities=$(awk -v start="$start_date" -v end="$end_date" '
+        BEGIN {
+            split(start, sdate, "-");
+            split(end, edate, "-");
+            s = mktime(sdate[1] " " sdate[2] " " sdate[3] " 00 00 00");
+            e = mktime(edate[1] " " edate[2] " " edate[3] " 23 59 59");
+        }
+        {
+            split($1, date, "-");
+            t = mktime(date[1] " " date[2] " " date[3] " 00 00 00");
+            if (t >= s && t <= e) {
+                print $0;
+            }
+        }
+    ' /var/log/syslog 2>/dev/null)
+
     if [ -z "$activities" ]; then
         echo "No activities found in the specified time range."
     else
@@ -179,37 +195,84 @@ EOF
 
 # Main function
 main() {
-    case "$1" in
-        -h|--help)
-            display_help
-            ;;
-        -p|--port)
-            show_ports "$2"
-            ;;
-        -d|--docker)
-            show_docker "$2"
-            ;;
-        -n|--nginx)
-            show_nginx "$2"
-            ;;
-        -u|--users)
-            show_users "$2"
-            ;;
-        -t|--time)
-            show_time "$2" "$3"
-            ;;
-        -a|--all)
-            show_ports
-            show_docker
-            show_nginx
-            show_users
-            show_time "$(date --date='-1 week' +%Y-%m-%d)" "$(date +%Y-%m-%d)"
-            ;;
-        *)
-            echo "Error: Invalid option or missing argument."
-            echo "Use '-h' or '--help' to see the usage instructions."
-            ;;
-    esac
+    local all=false
+    local command=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -p | --port)
+                command="ports"
+                shift
+                port="$1"
+                ;;
+            -d | --docker)
+                command="docker"
+                shift
+                container="$1"
+                ;;
+            -n | --nginx)
+                command="nginx"
+                shift
+                domain="$1"
+                ;;
+            -u | --users)
+                command="users"
+                shift
+                user="$1"
+                ;;
+            -t | --time)
+                command="time"
+                shift
+                start="$1"
+                end="$2"
+                shift
+                ;;
+            -a | --all)
+                all=true
+                ;;
+            -h | --help)
+                display_help
+                exit 0
+                ;;
+            *)
+                echo "Error: Invalid option $1"
+                echo "Use --help to display the available options."
+                exit 1
+                ;;
+        esac
+        shift
+    done
+
+    if $all; then
+        echo "Gathering all information..."
+        show_ports
+        show_docker
+        show_nginx
+        show_users
+        show_time "$(date +%Y-%m-%d)"
+    else
+        case "$command" in
+            ports)
+                show_ports "$port"
+                ;;
+            docker)
+                show_docker "$container"
+                ;;
+            nginx)
+                show_nginx "$domain"
+                ;;
+            users)
+                show_users "$user"
+                ;;
+            time)
+                show_time "$start" "$end"
+                ;;
+            *)
+                echo "Error: No valid command provided."
+                echo "Use --help to display the available options."
+                ;;
+        esac
+    fi
 }
 
 main "$@"
