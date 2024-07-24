@@ -68,8 +68,9 @@ show_docker() {
 
 # Function to show Nginx domains and configurations
 show_nginx() {
-    local header="Nginx Domains"
+    local header="Domain | Proxy | Config File"
     local data=""
+    local domain="$1" # Capture the argument for the domain
 
     # Array of common Nginx configuration file locations
     config_paths=(
@@ -80,31 +81,54 @@ show_nginx() {
         "/usr/local/nginx/conf/"
     )
 
-    # Loop through each configuration path
-    for path in "${config_paths[@]}"; do
-        if [ -d "$path" ]; then
-            # If the path is a directory, find all .conf files
-            config_files=$(find "$path" -type f -name "*.conf")
-        elif [ -f "$path" ]; then
-            # If the path is a file, use it directly
-            config_files="$path"
-        fi
+    if [ -n "$domain" ]; then
+        # If a domain is specified, show detailed configuration for that domain
+        for path in "${config_paths[@]}"; do
+            if [ -d "$path" ]; then
+                config_files=$(find "$path" -type f -name "*.conf")
+            elif [ -f "$path" ]; then
+                config_files="$path"
+            fi
 
-        # Extract server_name from each configuration file
-        for config_file in $config_files; do
-            # Extract server_name and format them
-            while IFS= read -r line; do
-                server_names=$(echo "$line" | awk '{print $2}' | sed 's/;//')
-                if [ -n "$server_names" ]; then
-                    data+="$server_names "
-                fi
-            done < <(awk '/server_name/ {print}' "$config_file")
+            for config_file in $config_files; do
+                while IFS= read -r line; do
+                    if [[ "$line" =~ server_name\ $domain ]]; then
+                        # Extract domain, proxy, and config file details
+                        domain_name="$domain"
+                        proxy=$(grep -oP 'proxy_pass\s+\K[^;]+' "$config_file")
+                        config_file_path="$config_file"
+
+                        # Format the data for output
+                        data+="$domain_name | $proxy | $config_file_path\n"
+                    fi
+                done < <(awk '/server_name/ {print}' "$config_file")
+            done
         done
-    done
 
-    # Remove trailing space and show the formatted table
-    data=$(echo "$data" | sed 's/ *$//')
-    format_table "$header" "$data"
+        # Show the formatted table
+        format_table "$header" "$data"
+    else
+        # If no domain is specified, list all domains
+        for path in "${config_paths[@]}"; do
+            if [ -d "$path" ]; then
+                config_files=$(find "$path" -type f -name "*.conf")
+            elif [ -f "$path" ]; then
+                config_files="$path"
+            fi
+
+            for config_file in $config_files; do
+                while IFS= read -r line; do
+                    server_names=$(echo "$line" | awk '{print $2}' | sed 's/;//')
+                    if [ -n "$server_names" ]; then
+                        data+="$server_names "
+                    fi
+                done < <(awk '/server_name/ {print}' "$config_file")
+            done
+        done
+
+        data=$(echo "$data" | sed 's/ *$//')
+        format_table "$header" "$data"
+    fi
 }
 
 # Function to show user login information
