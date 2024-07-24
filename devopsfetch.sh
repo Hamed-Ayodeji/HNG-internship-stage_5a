@@ -68,24 +68,43 @@ show_docker() {
 
 # Function to display Nginx domains and configurations
 show_nginx() {
-    if [ -z "$1" ]; then
-        local domains=$(grep -R 'server_name' /etc/nginx/sites-enabled/ 2>/dev/null |
-            awk '{print $2}' | sort | uniq)
-        if [ -z "$domains" ]; then
-            echo "No Nginx domains found."
-        else
-            format_table "Nginx Domains" "$domains"
+    local header="Nginx Domains"
+    local data=""
+
+    # Array of common Nginx configuration file locations
+    config_paths=(
+        "/etc/nginx/nginx.conf"
+        "/etc/nginx/conf.d/"
+        "/etc/nginx/sites-available/"
+        "/etc/nginx/sites-enabled/"
+        "/usr/local/nginx/conf/"
+    )
+
+    # Loop through each configuration path
+    for path in "${config_paths[@]}"; do
+        if [ -d "$path" ]; then
+            # If the path is a directory, find all .conf files
+            config_files=$(find "$path" -type f -name "*.conf")
+        elif [ -f "$path" ]; then
+            # If the path is a file, use it directly
+            config_files="$path"
         fi
-    else
-        local config=$(grep -R "server_name $1;" /etc/nginx/sites-enabled/ -A 10 2>/dev/null |
-            sed 's/^[[:space:]]*//')
-        if [ -z "$config" ]; then
-            echo "Error: Nginx domain $1 is not configured."
-            echo "Please verify the domain name and ensure it is correctly configured."
-            return
-        fi
-        format_table "Nginx Config for $1" "$config"
-    fi
+
+        # Extract server_name from each configuration file
+        for config_file in $config_files; do
+            # Extract server_name and format them
+            while IFS= read -r line; do
+                server_names=$(echo "$line" | awk '{print $2}' | sed 's/;//')
+                if [ -n "$server_names" ]; then
+                    data+="$server_names "
+                fi
+            done < <(awk '/server_name/ {print}' "$config_file")
+        done
+    done
+
+    # Remove trailing space and display the formatted table
+    data=$(echo "$data" | sed 's/ *$//')
+    format_table "$header" "$data"
 }
 
 # Function to display user login information
@@ -110,36 +129,51 @@ show_users() {
 
 # Function to display activities within a time range
 show_time() {
-    local start_date="$1"
-    local end_date="$2"
+    start_datetime="$1"
+    end_datetime="$2"
 
-    # Handle single date input by setting end_date as the same as start_date
-    if [ -z "$end_date" ]; then
-        end_date="$start_date"
+    # Default end datetime to current datetime if not provided
+    if [ -z "$end_datetime" ]; then
+        end_datetime=$(date '+%Y-%m-%d %H:%M:%S')
     fi
 
-    # Search within the time range or specific date
-    local activities=$(awk -v start="$start_date" -v end="$end_date" '
-        BEGIN {
-            split(start, sdate, "-");
-            split(end, edate, "-");
-            s = mktime(sdate[1] " " sdate[2] " " sdate[3] " 00 00 00");
-            e = mktime(edate[1] " " edate[2] " " edate[3] " 23 59 59");
-        }
+    echo "Showing activities from $start_datetime to $end_datetime:"
+    echo "======================================"
+
+    # Convert date-times to Unix timestamps for comparison
+    start_timestamp=$(date -d "$start_datetime" '+%s' 2>/dev/null)
+    end_timestamp=$(date -d "$end_datetime" '+%s' 2>/dev/null)
+
+    # Check if the provided date format is correct
+    if [ $? -ne 0 ]; then
+        echo "Invalid date format. Please use YYYY-MM-DD HH:MM:SS."
+        return
+    fi
+
+    # Iterate over log files (customize this path to match your log file locations)
+    for log_file in /var/log/*; do
+        # Check if the log file is readable
+        if [ ! -r "$log_file" ]; then
+            continue
+        fi
+
+        # Extract logs between the specified timestamps
+        awk -v start="$start_timestamp" -v end="$end_timestamp" '
         {
-            split($1, date, "-");
-            t = mktime(date[1] " " date[2] " " date[3] " 00 00 00");
-            if (t >= s && t <= e) {
-                print $0;
+            # Extract the datetime from the log line (customize datetime format based on log file format)
+            # Assuming log format like "2024-07-18 12:34:56"
+            match($0, /^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/, arr)
+            log_datetime = arr[1]
+            if (log_datetime != "") {
+                log_timestamp = mktime(gensub(/[-:]/, " ", "g", log_datetime) " 0")
+                if (log_timestamp >= start && log_timestamp <= end) {
+                    print $0
+                }
             }
-        }
-    ' /var/log/syslog 2>/dev/null)
+        }' "$log_file"
+    done
 
-    if [ -z "$activities" ]; then
-        echo "No activities found in the specified time range."
-    else
-        format_table "Activities from $start_date to $end_date" "$activities"
-    fi
+    echo "======================================"
 }
 
 # Help function
@@ -158,37 +192,37 @@ Options:
     -h, --help                 Display this help message
 
 Examples:
-    devopsfetch --port                          Display all active ports and services
+    devopsfetch --port                                                  Display all active ports and services
     devopsfetch -p
     
-    devopsfetch --port 80                       Display detailed information about a specific port (e.g., port 80)
+    devopsfetch --port 80                                               Display detailed information about a specific port (e.g., port 80)
     devopsfetch -p 80
     
-    devopsfetch --docker                        List all Docker images and containers
+    devopsfetch --docker                                                List all Docker images and containers
     devopsfetch -d
     
-    devopsfetch --docker specific-container     Display detailed information about a specific Docker container named specific-container
+    devopsfetch --docker specific-container                             Display detailed information about a specific Docker container named specific-container
     devopsfetch -d specific-container
     
-    devopsfetch --nginx                         Display all Nginx domains and their ports
+    devopsfetch --nginx                                                 Display all Nginx domains and their ports
     devopsfetch -n
     
-    devopsfetch --nginx example.com             Display detailed configuration for a specific domain (e.g., example.com)
+    devopsfetch --nginx example.com                                     Display detailed configuration for a specific domain (e.g., example.com)
     devopsfetch -n example.com
     
-    devopsfetch --users                         List all users and their last login times
+    devopsfetch --users                                                 List all users and their last login times
     devopsfetch -u
     
-    devopsfetch --users john                    Display detailed information about a specific user (e.g., john)
+    devopsfetch --users john                                            Display detailed information about a specific user (e.g., john)
     devopsfetch -u john
     
-    devopsfetch --time 2024-07-18 2024-07-22    Display activities on the server from 2024-07-18 to 2024-07-22
-    devopsfetch -t 2024-07-18 2024-07-22
+    devopsfetch --time "2024-07-18 12:00:00" "2024-07-18 15:00:00"      Display activities that happened on the server between the specified time range
+    devopsfetch -t "2024-07-18 12:00:00" "2024-07-18 15:00:00"
     
-    devopsfetch --time 2024-07-21               Display all activities that happened on the server on 2024-07-21
-    devopsfetch -t 2024-07-21
-    
-    devopsfetch --all                           Display all available information at once
+    devopsfetch --time "2024-07-18 12:00:00"                            Display activities that happened on the server from the specified time until now
+    devopsfetch -t "2024-07-18 12:00:00"
+
+    devopsfetch --all                                                   Display all available information at once
     devopsfetch -a
 EOF
 }
@@ -242,6 +276,12 @@ main() {
         esac
         shift
     done
+
+    # Check if no command was specified
+    if [ -z "$command" ] && ! $all; then
+        display_help
+        exit 0
+    fi
 
     if $all; then
         echo "Gathering all information..."
