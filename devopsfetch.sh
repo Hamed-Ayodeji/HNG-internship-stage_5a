@@ -100,7 +100,7 @@ show_nginx() {
                         proxy=$(grep -oP 'proxy_pass\s+\K[^;]+' "$config_file" | tr -d '\n' | xargs)
                         config_file_path="$config_file"
 
-                        # Format the data for output
+                        # Format the data for output using printf for proper handling of spaces and newlines
                         data+=$(printf "%s | %s | %s\n" "$domain_name" "$proxy" "$config_file_path")
                     fi
                 done < <(awk '/server_name/ {print}' "$config_file")
@@ -122,19 +122,18 @@ show_nginx() {
                 while IFS= read -r line; do
                     server_names=$(echo "$line" | awk '{print $2}' | sed 's/;//' | xargs)
                     if [ -n "$server_names" ]; then
-                        data+=$(printf "%s\n" "$server_names")
+                        data+="$server_names "
                     fi
                 done < <(awk '/server_name/ {print}' "$config_file")
             done
         done
     fi
 
-    # Remove any extra spaces and carriage returns
-    data=$(echo "$data" | sed '/^$/d' | sed 's/\r//g' | tr -s ' ')
-
-    # Show the formatted table
+    # Remove trailing newline and show the formatted table
+    data=$(echo "$data" | sed '/^$/d' | sed 's/\r//g') # Remove any empty lines and carriage returns
     format_table "$header" "$data"
 }
+
 
 # Function to show user login information
 show_users() {
