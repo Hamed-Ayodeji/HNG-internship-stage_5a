@@ -131,6 +131,8 @@ show_users() {
 show_time() {
     local start_time="$1"
     local end_time="$2"
+    local max_entries=20  # Limit the number of log entries displayed
+    local severity_filter='ERROR|WARNING'  # Filter for log severity
 
     if [ -n "$start_time" ] && [ -n "$end_time" ]; then
         echo "Activities from $start_time to $end_time:"
@@ -153,9 +155,12 @@ show_time() {
         logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager)
     fi
 
-    # Check if logs are empty
-    if [ -z "$logs" ]; then
-        echo "No logs found for the specified time."
+    # Filter logs based on severity and limit the output
+    filtered_logs=$(echo "$logs" | grep -E "$severity_filter" | tail -n "$max_entries")
+
+    # Check if filtered logs are empty
+    if [ -z "$filtered_logs" ]; then
+        echo "No important logs found for the specified time."
     else
         # Print header
         printf "%-20s | %s\n" "Timestamp" "Log Message"
@@ -169,7 +174,7 @@ show_time() {
 
             # Print formatted line
             printf "%-20s | %s\n" "$timestamp" "$message"
-        done <<< "$logs"
+        done <<< "$filtered_logs"
     fi
 
     echo "======================================"
