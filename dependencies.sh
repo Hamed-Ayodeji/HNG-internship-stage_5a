@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # List of packages to be checked and installed for each distribution
-debian_packages=("ss" "gawk" "sed" "grep" "docker.io" "nginx" "systemd")
+debian_packages=("iproute2" "gawk" "sed" "grep" "docker.io" "nginx" "systemd")
 rpm_packages=("iproute" "gawk" "sed" "grep" "docker-ce" "nginx" "systemd")
 arch_packages=("iproute2" "gawk" "sed" "grep" "docker" "nginx" "systemd")
 
