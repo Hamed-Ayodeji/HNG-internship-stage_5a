@@ -12,7 +12,7 @@ error_exit() {
 install_package() {
     local package="$1"
     if [ -x "$(command -v apt-get)" ]; then
-        sudo apt-get update && sudo apt-get install -y "$package"
+        sudo apt-get install -y "$package"
     elif [ -x "$(command -v yum)" ]; then
         sudo yum install -y "$package"
     elif [ -x "$(command -v dnf)" ]; then
@@ -26,11 +26,29 @@ install_package() {
     fi
 }
 
-# Install necessary dependencies
-echo "Installing dependencies..."
-install_package ss
-install_package docker
-install_package nginx
+# Check for the presence of the 'ss' command
+if ! command -v ss &> /dev/null; then
+    echo "'ss' command not found, installing iproute2 package..."
+    install_package iproute2
+else
+    echo "'ss' command is already installed."
+fi
+
+# Install Docker if not already installed
+if ! command -v docker &> /dev/null; then
+    echo "Docker not found, installing Docker..."
+    install_package docker.io
+else
+    echo "Docker is already installed."
+fi
+
+# Install Nginx if not already installed
+if ! command -v nginx &> /dev/null; then
+    echo "Nginx not found, installing Nginx..."
+    install_package nginx
+else
+    echo "Nginx is already installed."
+fi
 
 # Copy the script to /usr/local/bin
 echo "Copying devopsfetch to /usr/local/bin..."
