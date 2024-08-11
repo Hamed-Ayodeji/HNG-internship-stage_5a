@@ -1,353 +1,254 @@
 #!/bin/bash
 
-# Function to format output in a simple table
-format_table() {
-    local header="$1"
-    local data="$2"
-    local separator="================================================================================="
-    echo "$separator"
-    echo "$header"
-    echo "$separator"
-    echo "$data" | column -t -s ' '
-    echo "$separator"
-}
+# Global variables
+CONFIG_FILE="/etc/devopsfetch.conf"
+LOGFILE="/var/log/devopsfetch.log"
+TIME_FORMAT="%Y-%m-%d %H:%M:%S"
+NGINX_CONF_DIR="/etc/nginx"  # Default, will be overwritten based on distro
+LOG_LEVEL="INFO"  # Default log level, can be overridden by config
 
-# Function to show active ports with IP addresses
-show_ports() {
-    if [ -z "$1" ]; then
-        local ports=$(ss -tuln | awk 'NR>1 {print $5 " " $1}' |
-            awk -F: '{print $1 " " $2 " " $3}' |
-            awk '{print $2, $1, $3}' | sed '/^\s*$/d')
-        if [ -z "$ports" ]; then
-            echo "No active ports found."
-        else
-            format_table "Active Ports and Services" "$ports"
-        fi
+# Load configuration file if it exists
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+else
+    printf "Configuration file not found. Using default settings.\n" >&2
+fi
+
+# Functions
+
+# Log function with levels
+log() {
+    local level=$1
+    local message=$2
+    if [[ "$level" =~ ^(INFO|WARN|ERROR)$ ]]; then
+        printf "[%s] [%s] %s\n" "$(date +"$TIME_FORMAT")" "$level" "$message" >> "$LOGFILE"
     else
-        if ! ss -tuln | grep -q ":$1 "; then
-            echo "Error: Port $1 is not in use or does not exist."
-            echo "Please ensure the port number is correct and try again."
-            return
-        fi
-        local port_info=$(ss -tuln | grep ":$1 " |
-            awk '{print $5 " " $1}' |
-            awk -F: '{print $1 " " $2 " " $3}' |
-            awk '{print $2, $1, $3}' | sed '/^\s*$/d')
-        format_table "Port $1 Information" "$port_info"
+        printf "[%s] [INFO] %s\n" "$(date +"$TIME_FORMAT")" "$message" >> "$LOGFILE"
     fi
 }
 
-# Function to show Docker images/containers
-show_docker() {
-    if [ -z "$1" ]; then
-        local images=$(docker images --format "table {{.Repository}}  {{.Tag}}  {{.ID}}" |
-            awk 'NR>1 {print $1, $2, $3}')
-        local containers=$(docker ps --format "table {{.Names}}  {{.Image}}  {{.Status}}" |
-            awk 'NR>1 {print $1, $2, $3}')
-        if [ -z "$images" ]; then
-            echo "No Docker images found."
-        else
-            format_table "Docker Images" "$images"
-        fi
-        if [ -z "$containers" ]; then
-            echo "No Docker containers running."
-        else
-            format_table "Docker Containers" "$containers"
-        fi
+# Function to determine the Nginx configuration directory based on the package manager
+determine_nginx_conf_dir() {
+    if command -v apt-get &> /dev/null; then
+        NGINX_CONF_DIR="/etc/nginx/sites-available"
+    elif command -v yum &> /dev/null || command -v dnf &> /dev/null; then
+        NGINX_CONF_DIR="/etc/nginx/conf.d"
+    elif command -v zypper &> /dev/null; then
+        NGINX_CONF_DIR="/etc/nginx/vhosts.d"
+    elif command -v pacman &> /dev/null; then
+        NGINX_CONF_DIR="/etc/nginx/sites-available"
     else
-        if ! docker inspect "$1" &>/dev/null; then
-            echo "Error: Docker container $1 does not exist or is not running."
-            echo "Please check the container name and try again."
-            return
-        fi
-        local container_info=$(docker inspect "$1" --format "ID: {{.Id}}\nImage: {{.Config.Image}}\nStatus: {{.State.Status}}" |
-            awk -F': ' '{print $2}' | awk '{printf "%s\n", $0}')
-        format_table "Container $1 Information" "$container_info"
+        log "WARN" "Unsupported Linux distribution. Nginx configuration directory may vary."
+        NGINX_CONF_DIR="/etc/nginx"
     fi
 }
 
-# Function to show Nginx domains and configurations
-show_nginx() {
-    local header
-    local data=""
-    local domain="$1" # Capture the argument for the domain
+# Function to validate port numbers
+validate_port() {
+    if [[ ! $1 =~ ^[0-9]+$ || $1 -lt 1 || $1 -gt 65535 ]]; then
+        log "ERROR" "Invalid port number: $1"
+        return 1
+    fi
+    return 0
+}
 
-    # Array of common Nginx configuration file locations
-    config_paths=(
-        "/etc/nginx/nginx.conf"
-        "/etc/nginx/conf.d/"
-        "/etc/nginx/sites-available/"
-        "/etc/nginx/sites-enabled/"
-        "/usr/local/nginx/conf/"
-    )
+# Function to display help message with detailed explanations
+display_help() {
+    printf "Usage: devopsfetch [OPTIONS]\n\n"
+    printf "DevOpsFetch is a versatile tool designed to fetch and display various system information. It can handle Docker containers, Nginx configurations, user logins, and much more.\n\n"
+    printf "Options:\n"
+    printf "  -p, --port [PORT_NUMBER]     Display all active ports and services, or detailed information about a specific port.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -p              # Lists all active ports and services\n"
+    printf "                               devopsfetch -p 80           # Displays detailed information about port 80\n\n"
+    printf "  -d, --docker [CONTAINER]     List all Docker images and containers, or detailed information about a specific container.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -d              # Lists all Docker images and containers\n"
+    printf "                               devopsfetch -d my_container # Displays details for 'my_container'\n\n"
+    printf "  -n, --nginx [DOMAIN]         Display Nginx domains and their ports, or detailed configuration for a specific domain.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -n              # Lists all Nginx domains and their ports\n"
+    printf "                               devopsfetch -n example.com  # Displays Nginx config for 'example.com'\n\n"
+    printf "  -u, --users [USERNAME]       List all users and their last login times, or detailed information about a specific user.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -u              # Lists all users and their last login times\n"
+    printf "                               devopsfetch -u john         # Displays last login details for user 'john'\n\n"
+    printf "  -t, --time START END         Display activities within a specified time range.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -t '2023-08-01 00:00:00' '2023-08-01 23:59:59'  # Displays activities within this range\n\n"
+    printf "  -s, --specific TIME          Display activities at a specific time.\n"
+    printf "                               Example:\n"
+    printf "                               devopsfetch -s '2023-08-01 12:00:00'  # Displays activities at the specified time\n\n"
+    printf "  -h, --help                   Show this help message and exit.\n\n"
+    printf "Config File:\n"
+    printf "  You can customize DevOpsFetch's behavior by creating a configuration file at /etc/devopsfetch.conf.\n"
+    printf "  Example configuration options:\n"
+    printf "  LOGFILE='/var/log/devopsfetch.log'\n"
+    printf "  TIME_FORMAT='%Y-%m-%d %H:%M:%S'\n"
+    printf "  LOG_LEVEL='INFO'\n"
+    printf "\n"
+}
 
-    if [ -n "$domain" ]; then
-        # If a domain is specified, show detailed configuration for that domain
-        header="Domain | Proxy | Config File"
-        
-        for path in "${config_paths[@]}"; do
-            if [ -d "$path" ]; then
-                config_files=$(find "$path" -type f -name "*.conf")
-            elif [ -f "$path" ]; then
-                config_files="$path"
-            fi
+# Function to list active ports and services
+list_ports() {
+    printf "%-15s %-10s %-10s\n" "Port" "Protocol" "Service"
+    sudo netstat -tuln | awk 'NR>2 {split($4,a,":"); print a[2], $1, $7}' | column -t
+}
 
-            for config_file in $config_files; do
-                while IFS= read -r line; do
-                    if [[ "$line" =~ server_name\ $domain ]]; then
-                        # Extract domain, proxy, and config file details
-                        domain_name="$domain"
-                        proxy=$(grep -oP 'proxy_pass\s+\K[^;]+' "$config_file" | tr -d '\n' | xargs)
-                        config_file_path="$config_file"
+# Function to provide detailed information about a specific port
+port_info() {
+    local port=$1
+    validate_port "$port" || return 1
+    printf "Details for port %s:\n" "${port}"
+    sudo netstat -tulnp | grep ":${port}\b" | awk '{print "Protocol: "$1"\nAddress: "$4"\nPID/Program: "$7}'
+}
 
-                        # Format the data for output using printf for proper handling of spaces and newlines
-                        data+=$(printf "%s | %s | %s\n" "$domain_name" "$proxy" "$config_file_path")
-                    fi
-                done < <(awk '/server_name/ {print}' "$config_file")
-            done
+# Function to list Docker images and containers
+list_docker() {
+    printf "\nDocker Images:\n"
+    printf "%-30s %-10s %-15s %-10s\n" "Repository" "Tag" "Image ID" "Size"
+    sudo docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | column -t
+    printf "\nDocker Containers:\n"
+    printf "%-20s %-30s %-15s %-20s\n" "Name" "Image" "Status" "Ports"
+    sudo docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | column -t
+}
+
+# Function to provide detailed information about a specific Docker container
+docker_info() {
+    local container=$1
+    printf "Details for Docker container %s:\n" "${container}"
+    sudo docker inspect "${container}" | jq .
+}
+
+# Function to display Nginx domains and their ports
+list_nginx() {
+    printf "%-30s %-10s\n" "Domain" "Port"
+    grep -rh "server_name" ${NGINX_CONF_DIR}/* | awk '{print $2}' | tr -d ';' | while read -r domain; do
+        grep -rh "listen" ${NGINX_CONF_DIR}/* | awk '{print $2}' | tr -d ';' | while read -r port; do
+            printf "%-30s %-10s\n" "$domain" "$port"
         done
-
-    else
-        # If no domain is specified, list all domains
-        header="Domain"
-        
-        for path in "${config_paths[@]}"; do
-            if [ -d "$path" ]; then
-                config_files=$(find "$path" -type f -name "*.conf")
-            elif [ -f "$path" ]; then
-                config_files="$path"
-            fi
-
-            for config_file in $config_files; do
-                while IFS= read -r line; do
-                    server_names=$(echo "$line" | awk '{print $2}' | sed 's/;//' | xargs)
-                    if [ -n "$server_names" ]; then
-                        data+="$server_names "
-                    fi
-                done < <(awk '/server_name/ {print}' "$config_file")
-            done
-        done
-    fi
-
-    # Remove trailing newline and show the formatted table
-    data=$(echo "$data" | sed '/^$/d' | sed 's/\r//g') # Remove any empty lines and carriage returns
-    format_table "$header" "$data"
+    done
 }
 
-# Function to show user login information
-show_users() {
-    if [ -z "$1" ]; then
-        local users=$(lastlog | awk 'NR>1 {print $1 " " $3 " " $4 " " $5}')
-        if [ -z "$users" ]; then
-            echo "No user login information found."
-        else
-            format_table "Users and Last Login Times" "$users"
-        fi
-    else
-        if ! lastlog -u "$1" | grep -q "$1"; then
-            echo "Error: User $1 does not exist or has no login records."
-            echo "Please check the username and try again."
-            return
-        fi
-        local user_info=$(lastlog -u "$1" | awk 'NR>1 {print $1 " " $3 " " $4 " " $5}')
-        format_table "User $1 Information" "$user_info"
-    fi
+# Function to provide detailed configuration information for a specific Nginx domain
+nginx_info() {
+    local domain=$1
+    printf "Configuration details for Nginx domain %s:\n" "${domain}"
+    grep -r "server_name ${domain}" ${NGINX_CONF_DIR}/* | xargs grep -H -E 'listen|server_name|root|index'
 }
 
-# Function to display activities within a specified time range or a specific time
-show_time() {
-    local start_time="$1"
-    local end_time="$2"
-    local max_entries=60  # Limit the number of log entries displayed
-
-    if [ -n "$start_time" ] && [ -n "$end_time" ]; then
-        echo "Activities from $start_time to $end_time:"
-        # Ensure start_time is before end_time
-        if [[ "$(date -d "$start_time" +%s)" -ge "$(date -d "$end_time" +%s)" ]]; then
-            echo "Error: Start time must be before end time."
-            exit 1
-        fi
-    elif [ -n "$start_time" ]; then
-        echo "Activities at $start_time:"
-        # Define an end time slightly after the specific time to capture all activities at that timestamp
-        end_time=$(date -d "$start_time + 1 minute" "+%Y-%m-%d %H:%M:%S")
-    else
-        echo "Error: Invalid arguments. Please specify a time range or a specific time."
-        exit 1
-    fi
-
-    echo "======================================"
-
-    # Fetch logs using journalctl
-    local logs
-    if [ -n "$end_time" ]; then
-        logs=$(journalctl --since "$start_time" --until "$end_time" --no-pager 2>/dev/null)
-    else
-        logs=$(journalctl --since "$start_time" --no-pager 2>/dev/null)
-    fi
-
-    # Check if logs are empty
-    if [ -z "$logs" ]; then
-        echo "No logs found for the specified time."
-    else
-        # Limit the output
-        filtered_logs=$(echo "$logs" | tail -n "$max_entries")
-
-        # Print header
-        printf "%-20s | %s\n" "Timestamp" "Log Message"
-        echo "--------------------------------------"
-
-        # Print each log entry
-        while IFS= read -r line; do
-            # Extract the timestamp and the message
-            local timestamp=$(echo "$line" | awk '{print $1" "$2}')
-            local message=$(echo "$line" | cut -d ' ' -f 3-)
-
-            # Print formatted line
-            printf "%-20s | %s\n" "$timestamp" "$message"
-        done <<< "$filtered_logs"
-    fi
-
-    echo "======================================"
+# Function to list users and their last login times
+list_users() {
+    printf "%-20s %-20s %-30s\n" "Username" "Port" "Last Login"
+    lastlog | grep -v "Never" | awk '{printf "%-20s %-20s %-30s\n", $1, $3, $4 " " $5 " " $6 " " $7}'
 }
 
-# Help function
-show_help() {
-    cat <<EOF
-Usage: devopsfetch [OPTION]...
-Retrieve and show server information.
-
-Options:
-    -p, --port [PORT]          Show active ports or info about a specific port
-    -d, --docker [CONTAINER]   List Docker images/containers or info about a specific container
-    -n, --nginx [DOMAIN]       Show Nginx domains or config for a specific domain
-    -u, --users [USERNAME]     List users and last login times or info about a specific user
-    -t, --time [START] [END]   Show activities within a specified time range
-    -a, --all                  Show all information
-    -h, --help                 Show this help message
-
-Examples:
-    devopsfetch --port                                                  Show all active ports and services
-    devopsfetch -p
-    
-    devopsfetch --port 80                                               Show detailed information about a specific port (e.g., port 80)
-    devopsfetch -p 80
-    
-    devopsfetch --docker                                                List all Docker images and containers
-    devopsfetch -d
-    
-    devopsfetch --docker specific-container                             Show detailed information about a specific Docker container named specific-container
-    devopsfetch -d specific-container
-    
-    devopsfetch --nginx                                                 Show all Nginx domains and their ports
-    devopsfetch -n
-    
-    devopsfetch --nginx example.com                                     Show detailed configuration for a specific domain (e.g., example.com)
-    devopsfetch -n example.com
-    
-    devopsfetch --users                                                 List all users and their last login times
-    devopsfetch -u
-    
-    devopsfetch --users john                                            Show detailed information about a specific user (e.g., john)
-    devopsfetch -u john
-    
-    devopsfetch --time "2024-07-18 12:00:00" "2024-07-18 15:00:00"      Show activities that happened on the server between the specified time range
-    devopsfetch -t "2024-07-18 12:00:00" "2024-07-18 15:00:00"
-    
-    devopsfetch --time "2024-07-18 12:00:00"                            Show activities that happened on the server for the specified time
-    devopsfetch -t "2024-07-18 12:00:00"
-
-    devopsfetch --all                                                   Show all available information at once
-    devopsfetch -a
-EOF
+# Function to provide detailed information about a specific user
+user_info() {
+    local username=$1
+    printf "Last login details for user %s:\n" "${username}"
+    lastlog -u "${username}" | grep -v "Never" | awk '{printf "Username: %s\nPort: %s\nLast Login: %s %s %s %s\n", $1, $3, $4, $5, $6, $7}'
 }
 
-# Main function
+# Function to display activities within a specified time range
+time_range() {
+    local start_time=$1
+    local end_time=$2
+    journalctl --since="$start_time" --until="$end_time"
+}
+
+# Function to display activities at a specific time
+specific_time() {
+    local time=$1
+    journalctl --since="$time" --until="$time +1s"
+}
+
+# Main execution function
 main() {
-    local all=false
-    local command=""
-
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -p | --port)
-                command="ports"
-                shift
-                port="$1"
+    # Determine the correct Nginx configuration directory based on distro
+    determine_nginx_conf_dir
+    
+    if [[ "$#" -eq 0 ]]; then
+        display_help
+        exit 0
+    fi
+    
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            -p|--port)
+                if [[ -z "$2" ]]; then
+                    list_ports
+                    log "INFO" "Listed all active ports and services"
+                else
+                    port_info "$2"
+                    log "INFO" "Displayed information for port $2"
+                    shift
+                fi
                 ;;
-            -d | --docker)
-                command="docker"
-                shift
-                container="$1"
+            -d|--docker)
+                if [[ -z "$2" ]]; then
+                    list_docker
+                    log "INFO" "Listed all Docker images and containers"
+                else
+                    docker_info "$2"
+                    log "INFO" "Displayed information for Docker container $2"
+                    shift
+                fi
                 ;;
-            -n | --nginx)
-                command="nginx"
-                shift
-                domain="$1"
+            -n|--nginx)
+                if [[ -z "$2" ]]; then
+                    list_nginx
+                    log "INFO" "Listed all Nginx domains and their ports"
+                else
+                    nginx_info "$2"
+                    log "INFO" "Displayed Nginx configuration for domain $2"
+                    shift
+                fi
                 ;;
-            -u | --users)
-                command="users"
-                shift
-                user="$1"
+            -u|--users)
+                if [[ -z "$2" ]]; then
+                    list_users
+                    log "INFO" "Listed all users and their last login times"
+                else
+                    user_info "$2"
+                    log "INFO" "Displayed information for user $2"
+                    shift
+                fi
                 ;;
-            -t | --time)
-                command="time"
-                shift
-                start="$1"
-                end="$2"
-                shift
+            -t|--time)
+                if [[ -n "$2" && -n "$3" ]]; then
+                    time_range "$2" "$3"
+                    log "INFO" "Displayed activities from $2 to $3"
+                    shift 2
+                else
+                    log "ERROR" "Time range requires a start and end time."
+                    printf "Error: Time range requires a start and end time.\n" >&2
+                fi
                 ;;
-            -a | --all)
-                all=true
+            -s|--specific)
+                if [[ -n "$2" ]]; then
+                    specific_time "$2"
+                    log "INFO" "Displayed activities at $2"
+                    shift
+                else
+                    log "ERROR" "Specific time requires a valid time input."
+                    printf "Error: Specific time requires a valid time input.\n" >&2
+                fi
                 ;;
-            -h | --help)
-                show_help
+            -h|--help)
+                display_help
                 exit 0
                 ;;
             *)
-                echo "Error: Invalid option $1"
-                echo "Use --help to show the available options."
+                log "ERROR" "Invalid option: $1"
+                printf "Invalid option: %s\n" "$1" >&2
+                display_help
                 exit 1
                 ;;
         esac
         shift
     done
-
-    # Check if no command was specified
-    if [ -z "$command" ] && ! $all; then
-        show_help
-        exit 0
-    fi
-
-    if $all; then
-        echo "Gathering all information..."
-        show_ports
-        show_docker
-        show_nginx
-        show_users
-        show_time "$(date +%Y-%m-%d)"
-    else
-        case "$command" in
-            ports)
-                show_ports "$port"
-                ;;
-            docker)
-                show_docker "$container"
-                ;;
-            nginx)
-                show_nginx "$domain"
-                ;;
-            users)
-                show_users "$user"
-                ;;
-            time)
-                show_time "$start" "$end"
-                ;;
-            *)
-                echo "Error: No valid command provided."
-                echo "Use --help to show the available options."
-                ;;
-        esac
-    fi
 }
 
+# Execute main function with provided arguments
 main "$@"
