@@ -2,8 +2,8 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-  sudo -E "$0" "$@"
-  exit
+    sudo -E "$0" "$@"
+    exit
 fi
 
 # Global variables
@@ -120,7 +120,7 @@ create_table() {
     # Create the border for the table
     local border="+"
     for width in "${col_widths[@]}"; do
-        border+="$(printf '%*s' $((width + 2)) '' | tr ' ' '-')+"
+        border+="$(printf '%-*s' $((width + 2)) '' | tr ' ' '-')+"
     done
 
     # Print the header with aligned columns
