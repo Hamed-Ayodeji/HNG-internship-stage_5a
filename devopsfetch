@@ -2,8 +2,8 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-    sudo -E "$0" "$@"
-    exit
+  sudo -E "$0" "$@"
+  exit
 fi
 
 # Global variables
@@ -99,39 +99,64 @@ display_help() {
 create_table() {
     local header="$1"
     local data="$2"
-    local border
+    local col_widths=()
 
-    # Calculate the border length based on header length
-    border=$(printf '%*s' "${#header}" '' | tr ' ' '-')
+    # Calculate the column widths based on header length
+    IFS=' ' read -r -a headers <<< "$header"
+    for col in "${headers[@]}"; do
+        col_widths+=(${#col})
+    done
 
-    # Print the top border
-    printf "+%s+\n" "$border"
+    # Adjust column widths based on the longest data element in each column
+    while IFS= read -r line; do
+        IFS=' ' read -r -a columns <<< "$line"
+        for i in "${!columns[@]}"; do
+            if [[ ${#columns[$i]} -gt ${col_widths[$i]} ]]; then
+                col_widths[$i]=${#columns[$i]}
+            fi
+        done
+    done <<< "$data"
+
+    # Create the top border
+    local border="+"
+    for width in "${col_widths[@]}"; do
+        border+=$(printf "%-${width}s" "-")
+        border+="+"
+    done
+    echo "${border// /-}"
 
     # Print the header with aligned columns
-    printf "| %s |\n" "$header"
-
-    # Print the border below the header
-    printf "+%s+\n" "$border"
+    printf "|"
+    for i in "${!headers[@]}"; do
+        printf " %-${col_widths[$i]}s |" "${headers[$i]}"
+    done
+    echo
+    echo "$border"
 
     # Print the data rows with aligned columns
     if [[ -n "$data" ]]; then
         while IFS= read -r line; do
-            printf "| %s |\n" "$line"
+            IFS=' ' read -r -a columns <<< "$line"
+            printf "|"
+            for i in "${!columns[@]}"; do
+                printf " %-${col_widths[$i]}s |" "${columns[$i]}"
+            done
+            echo
         done <<< "$data"
     else
-        printf "| No data available |\n"
+        printf "| %-$((${#border} - 4))s |\n" "No data available"
     fi
 
-    # Print the bottom border
-    printf "+%s+\n" "$border"
+    # Create the bottom border
+    echo "$border"
 }
 
 # Function to list active ports and services
 list_ports() {
-    local header="PORT      PROTOCOL   SERVICE"
+    local header="PORT PROTOCOL SERVICE"
     local data
 
-    data=$(netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%-8s %-8s %-s\n", a[2], $1, ($7 ? $7 : "-")}' | column -t)
+    data=$(netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}' | column -t)
     
     create_table "$header" "$data"
 }
@@ -141,20 +166,20 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    local header="PROTOCOL   ADDRESS                 PID/PROGRAM"
+    local header="PROTOCOL ADDRESS PID/PROGRAM"
     local data
 
-    data=$(netstat -tulnp | grep ":${port}\b" | awk '{printf "%-9s %-22s %-s\n", $1, $4, ($7 ? $7 : "-")}' | column -t)
+    data=$(netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}' | column -t)
 
     create_table "$header" "$data"
 }
 
 # Function to list Docker images
 display_docker_images() {
-    local header="REPOSITORY         TAG          IMAGE ID         SIZE"
+    local header="REPOSITORY TAG IMAGE_ID SIZE"
     local data
 
-    data=$(docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | awk '{printf "%-15s %-10s %-12s %-8s\n", $1, $2, $3, $4}' | column -t)
+    data=$(docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}' | column -t)
 
     if [[ -z "$data" ]]; then
         data="No Docker images found."
@@ -165,10 +190,10 @@ display_docker_images() {
 
 # Function to list Docker containers
 display_docker_containers() {
-    local header="NAMES              IMAGE           STATUS       PORTS"
+    local header="NAMES IMAGE STATUS PORTS"
     local data
 
-    data=$(docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '{printf "%-17s %-15s %-12s %-s\n", $1, $2, $3, ($4 ? $4 : "-")}' | column -t)
+    data=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, ($4 ? $4 : "-")}' | column -t)
 
     if [[ -z "$data" ]]; then
         data="No Docker containers are currently running."
@@ -179,7 +204,7 @@ display_docker_containers() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    local header="DOMAIN                             PROXY                     CONFIGURATION FILE"
+    local header="DOMAIN PROXY CONFIGURATION_FILE"
     local data
 
     # Example data, replace with actual Nginx domain information
@@ -188,7 +213,7 @@ display_nginx_domains() {
     config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
     
     for i in "${!domains[@]}"; do
-        data+=$(printf "%-30s %-22s %-s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}")$'\n'
+        data+=$(printf "%s %s %s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}")$'\n'
     done
 
     create_table "$header" "$data"
@@ -196,10 +221,10 @@ display_nginx_domains() {
 
 # Function to list users and their last login times
 list_users() {
-    local header="USERNAME         PORT          LAST LOGIN"
+    local header="USERNAME PORT LAST_LOGIN"
     local data
 
-    data=$(lastlog | grep -v "Never" | awk '{printf "%-15s %-12s %-s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+    data=$(lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
 
     create_table "$header" "$data"
 }
@@ -207,10 +232,10 @@ list_users() {
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    local header="USERNAME         PORT          LAST LOGIN"
+    local header="USERNAME PORT LAST_LOGIN"
     local data
 
-    data=$(lastlog -u "${username}" | grep -v "Never" | awk '{printf "%-15s %-12s %-s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+    data=$(lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
 
     create_table "$header" "$data"
 }
