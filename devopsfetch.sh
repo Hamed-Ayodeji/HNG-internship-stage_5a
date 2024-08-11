@@ -7,7 +7,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 # Path to the Python formatting script
-PYTHON_FORMATTER="./format_output.py"
+PYTHON_FORMATTER="/usr/local/bin/format_output.py"
 
 # Global variables
 CONFIG_FILE="/etc/devopsfetch.conf"
@@ -40,7 +40,7 @@ log() {
 determine_nginx_conf_dir() {
     if command -v apt-get &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/sites-available"
-    elif command -v yum &> /dev/null || command -v dnf &> /dev/null; then
+    elif command -v yum &> /null || command -v dnf &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/conf.d"
     elif command -v zypper &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/vhosts.d"
@@ -121,6 +121,12 @@ display_docker_containers() {
     docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
+# Function to provide detailed information about a specific Docker container
+docker_info() {
+    local container_name=$1
+    docker inspect "$container_name" | python3 "$PYTHON_FORMATTER" docker_containers
+}
+
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
     domains=("sub.control.example.com" "myexample.example.com" "sub.example.com")
@@ -132,6 +138,17 @@ display_nginx_domains() {
     done | python3 "$PYTHON_FORMATTER" nginx
 }
 
+# Function to provide detailed information about a specific Nginx domain
+nginx_info() {
+    local domain_name=$1
+    local config_file=$(grep -irl "server_name.*$domain_name" $NGINX_CONF_DIR)
+    if [[ -z "$config_file" ]]; then
+        printf "No configuration found for domain: %s\n" "$domain_name"
+        return
+    fi
+    cat "$config_file" | python3 "$PYTHON_FORMATTER" nginx
+}
+
 # Function to list users and their last login times
 list_users() {
     lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
@@ -141,6 +158,23 @@ list_users() {
 user_info() {
     local username=$1
     lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
+}
+
+# Function to display activities within a specified time range
+time_range() {
+    local start_time=$1
+    local end_time=$2
+    printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
+    journalctl --since="$start_time" --until="$end_time"
+    printf "\n"
+}
+
+# Function to display activities at a specific time
+specific_time() {
+    local time=$1
+    printf "\nDisplaying activities at %s:\n" "$time"
+    journalctl --since="$time" --until="$time +1 second"
+    printf "\n"
 }
 
 # Main execution function
