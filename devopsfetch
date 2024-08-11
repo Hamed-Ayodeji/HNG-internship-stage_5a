@@ -99,47 +99,45 @@ display_help() {
 create_table() {
     local header="$1"
     local data="$2"
-    local col_widths=()
 
-    # Calculate the column widths based on header length
-    IFS=' ' read -r -a headers <<< "$header"
+    # Calculate the width of each column based on the header
+    local col_widths=()
+    IFS='|' read -ra headers <<< "$header"
     for col in "${headers[@]}"; do
         col_widths+=(${#col})
     done
 
     # Adjust column widths based on the longest data element in each column
-    while IFS= read -r line; do
-        IFS=' ' read -r -a columns <<< "$line"
+    while IFS='|' read -ra columns; do
         for i in "${!columns[@]}"; do
+            columns[$i]=$(echo "${columns[$i]}" | xargs) # Trim spaces
             if [[ ${#columns[$i]} -gt ${col_widths[$i]} ]]; then
                 col_widths[$i]=${#columns[$i]}
             fi
         done
     done <<< "$data"
 
-    # Create the top border
+    # Create the border for the table
     local border="+"
     for width in "${col_widths[@]}"; do
-        border+=$(printf "%-${width}s" "-")
-        border+="+"
+        border+="$(printf '%*s' $((width + 2)) '' | tr ' ' '-')+"
     done
-    echo "${border// /-}"
 
     # Print the header with aligned columns
+    echo "$border"
     printf "|"
     for i in "${!headers[@]}"; do
-        printf " %-${col_widths[$i]}s |" "${headers[$i]}"
+        printf " %-${col_widths[$i]}s |" "$(echo "${headers[$i]}" | xargs)"
     done
     echo
     echo "$border"
 
     # Print the data rows with aligned columns
     if [[ -n "$data" ]]; then
-        while IFS= read -r line; do
-            IFS=' ' read -r -a columns <<< "$line"
+        while IFS='|' read -ra columns; do
             printf "|"
             for i in "${!columns[@]}"; do
-                printf " %-${col_widths[$i]}s |" "${columns[$i]}"
+                printf " %-${col_widths[$i]}s |" "$(echo "${columns[$i]}" | xargs)"
             done
             echo
         done <<< "$data"
@@ -147,16 +145,16 @@ create_table() {
         printf "| %-$((${#border} - 4))s |\n" "No data available"
     fi
 
-    # Create the bottom border
+    # Print the bottom border
     echo "$border"
 }
 
 # Function to list active ports and services
 list_ports() {
-    local header="PORT PROTOCOL SERVICE"
+    local header="PORT|PROTOCOL|SERVICE"
     local data
 
-    data=$(netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}' | column -t)
+    data=$(netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s|%s|%s\n", a[2], $1, ($7 ? $7 : "-")}' | column -t -s '|')
     
     create_table "$header" "$data"
 }
@@ -166,20 +164,20 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    local header="PROTOCOL ADDRESS PID/PROGRAM"
+    local header="PROTOCOL|ADDRESS|PID/PROGRAM"
     local data
 
-    data=$(netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}' | column -t)
+    data=$(netstat -tulnp | grep ":${port}\b" | awk '{printf "%s|%s|%s\n", $1, $4, ($7 ? $7 : "-")}' | column -t -s '|')
 
     create_table "$header" "$data"
 }
 
 # Function to list Docker images
 display_docker_images() {
-    local header="REPOSITORY TAG IMAGE_ID SIZE"
+    local header="REPOSITORY|TAG|IMAGE ID|SIZE"
     local data
 
-    data=$(docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}' | column -t)
+    data=$(docker images --format "{{.Repository}}|{{.Tag}}|{{.ID}}|{{.Size}}" | column -t -s '|')
 
     if [[ -z "$data" ]]; then
         data="No Docker images found."
@@ -190,10 +188,10 @@ display_docker_images() {
 
 # Function to list Docker containers
 display_docker_containers() {
-    local header="NAMES IMAGE STATUS PORTS"
+    local header="NAMES|IMAGE|STATUS|PORTS"
     local data
 
-    data=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, ($4 ? $4 : "-")}' | column -t)
+    data=$(docker ps --format "{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}" | column -t -s '|')
 
     if [[ -z "$data" ]]; then
         data="No Docker containers are currently running."
@@ -204,7 +202,7 @@ display_docker_containers() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    local header="DOMAIN PROXY CONFIGURATION_FILE"
+    local header="DOMAIN|PROXY|CONFIGURATION FILE"
     local data
 
     # Example data, replace with actual Nginx domain information
@@ -213,7 +211,7 @@ display_nginx_domains() {
     config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
     
     for i in "${!domains[@]}"; do
-        data+=$(printf "%s %s %s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}")$'\n'
+        data+=$(printf "%s|%s|%s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}")$'\n'
     done
 
     create_table "$header" "$data"
@@ -221,10 +219,10 @@ display_nginx_domains() {
 
 # Function to list users and their last login times
 list_users() {
-    local header="USERNAME PORT LAST_LOGIN"
+    local header="USERNAME|PORT|LAST LOGIN"
     local data
 
-    data=$(lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+    data=$(lastlog | grep -v "Never" | awk '{printf "%s|%s|%s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | column -t -s '|')
 
     create_table "$header" "$data"
 }
@@ -232,10 +230,10 @@ list_users() {
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    local header="USERNAME PORT LAST_LOGIN"
+    local header="USERNAME|PORT|LAST LOGIN"
     local data
 
-    data=$(lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+    data=$(lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s|%s|%s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | column -t -s '|')
 
     create_table "$header" "$data"
 }
