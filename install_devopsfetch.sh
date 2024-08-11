@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# Ensure the script is run as root
+if [[ "$(id -u)" -ne 0 ]]; then
+    sudo -E "$0" "$@"
+    exit
+fi
+
 # Global variables
-CONFIG_FILE="/etc/devopsfetch.conf"
 LOGFILE="/var/log/devopsfetch.log"
 LOGDIR=$(dirname "$LOGFILE")
 LOGROTATE_CONF="/etc/logrotate.d/devopsfetch"
@@ -36,16 +41,16 @@ NGINX_CONF_PATHS=(
 install_packages() {
     local packages="$1"
     if command -v apt-get &> /dev/null; then
-        sudo apt-get update -y
-        sudo apt-get install -y $packages
+        apt-get update -y
+        apt-get install -y $packages
     elif command -v yum &> /dev/null; then
-        sudo yum install -y $packages
+        yum install -y $packages
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y $packages
+        dnf install -y $packages
     elif command -v zypper &> /dev/null; then
-        sudo zypper install -y $packages
+        zypper install -y $packages
     elif command -v pacman &> /dev/null; then
-        sudo pacman -Sy --noconfirm $packages
+        pacman -Sy --noconfirm $packages
     else
         printf "Unsupported package manager. Please install dependencies manually.\n" >&2
         exit 1
@@ -79,14 +84,14 @@ check_and_install_dependencies() {
 ensure_directories_and_files() {
     # Ensure log directory exists
     if [[ ! -d "$LOGDIR" ]]; then
-        sudo mkdir -p "$LOGDIR"
-        sudo chmod 755 "$LOGDIR"
+        mkdir -p "$LOGDIR"
+        chmod 755 "$LOGDIR"
     fi
 
     # Ensure log file exists
     if [[ ! -f "$LOGFILE" ]]; then
-        sudo touch "$LOGFILE"
-        sudo chmod 644 "$LOGFILE"
+        touch "$LOGFILE"
+        chmod 644 "$LOGFILE"
     fi
 
     # Ensure Nginx configuration directory exists
@@ -98,20 +103,20 @@ ensure_directories_and_files() {
 
 # Function to create default configuration file if it doesn't exist
 create_default_config() {
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        sudo bash -c "cat <<EOF > $CONFIG_FILE
+    if [[ ! -f "/etc/devopsfetch.conf" ]]; then
+        cat <<EOF > /etc/devopsfetch.conf
 # DevOpsFetch Configuration File
 LOGFILE='/var/log/devopsfetch.log'
 TIME_FORMAT='%Y-%m-%d %H:%M:%S'
 LOG_LEVEL='INFO'
-EOF"
-        sudo chmod 644 "$CONFIG_FILE"
+EOF
+        chmod 644 "/etc/devopsfetch.conf"
     fi
 }
 
 # Systemd service creation
 setup_systemd_service() {
-    sudo bash -c 'cat <<EOF > /etc/systemd/system/devopsfetch.service
+    cat <<EOF > /etc/systemd/system/devopsfetch.service
 [Unit]
 Description=DevOps Fetch Service
 After=network.target
@@ -122,15 +127,15 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF'
-    sudo systemctl daemon-reload
-    sudo systemctl enable devopsfetch
-    sudo systemctl start devopsfetch
+EOF
+    systemctl daemon-reload
+    systemctl enable devopsfetch
+    systemctl start devopsfetch
 }
 
 # Log rotation configuration
 setup_log_rotation() {
-    sudo bash -c "cat <<EOF > $LOGROTATE_CONF
+    cat <<EOF > $LOGROTATE_CONF
 $LOGFILE {
     daily
     missingok
@@ -140,20 +145,14 @@ $LOGFILE {
     notifempty
     create 0640 root root
 }
-EOF"
+EOF
 }
 
 # Ensure devopsfetch script is installed and add to PATH
 install_script() {
-    sudo cp devopsfetch /usr/local/bin/devopsfetch
-    sudo chmod +x /usr/local/bin/devopsfetch
+    cp devopsfetch /usr/local/bin/devopsfetch
+    chmod +x /usr/local/bin/devopsfetch
 }
-
-# Check for script execution as root
-if [[ "$EUID" -ne 0 ]]; then
-    printf "Please run as root.\n" >&2
-    exit 1
-fi
 
 # Check and install dependencies, setup systemd service, and ensure necessary files and directories
 check_and_install_dependencies

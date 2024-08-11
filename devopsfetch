@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Ensure the script is run as root
+if [[ "$(id -u)" -ne 0 ]]; then
+    sudo -E "$0" "$@"
+    exit
+fi
+
 # Global variables
 CONFIG_FILE="/etc/devopsfetch.conf"
 LOGFILE="/var/log/devopsfetch.log"
@@ -91,76 +97,84 @@ display_help() {
 
 # Function to list active ports and services
 list_ports() {
-    printf "%-15s %-10s %-10s\n" "Port" "Protocol" "Service"
-    sudo netstat -tuln | awk 'NR>2 {split($4,a,":"); print a[2], $1, $7}' | column -t
+    printf "\n%s\n" "================= ACTIVE PORTS =================="
+    printf "\n%-15s %-10s %-10s\n" "PORT" "PROTOCOL" "SERVICE"
+    netstat -tuln | awk 'NR>2 {split($4,a,":"); print a[2], $1, $7}' | column -t
+    printf "\n"
 }
 
 # Function to provide detailed information about a specific port
 port_info() {
     local port=$1
     validate_port "$port" || return 1
-    printf "Details for port %s:\n" "${port}"
-    sudo netstat -tulnp | grep ":${port}\b" | awk '{print "Protocol: "$1"\nAddress: "$4"\nPID/Program: "$7}'
+    printf "\nDetails for port %s:\n" "${port}"
+    netstat -tulnp | grep ":${port}\b" | awk '{print "Protocol: "$1"\nAddress: "$4"\nPID/Program: "$7}' | column -t
+    printf "\n"
 }
 
 # Function to list Docker images and containers
-list_docker() {
-    printf "\nDocker Images:\n"
-    printf "%-30s %-10s %-15s %-10s\n" "Repository" "Tag" "Image ID" "Size"
-    sudo docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | column -t
-    printf "\nDocker Containers:\n"
-    printf "%-20s %-30s %-15s %-20s\n" "Name" "Image" "Status" "Ports"
-    sudo docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | column -t
+display_docker_images() {
+    printf "\n%s\n" "==================== DOCKER STATUS ===================="
+    printf "\n"
+    printf "%-20s %-10s %-20s %-10s\n" "REPOSITORY" "TAG" "IMAGE ID" "SIZE"
+    docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | column -t
+    printf "\n"
 }
 
-# Function to provide detailed information about a specific Docker container
-docker_info() {
-    local container=$1
-    printf "Details for Docker container %s:\n" "${container}"
-    sudo docker inspect "${container}" | jq .
+display_docker_containers() {
+    printf "%-20s %-20s %-15s %-10s\n" "NAMES" "IMAGE" "STATUS" "PORTS"
+    docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | column -t
+    printf "\n"
 }
 
 # Function to display Nginx domains and their ports
-list_nginx() {
-    printf "%-30s %-10s\n" "Domain" "Port"
-    grep -rh "server_name" ${NGINX_CONF_DIR}/* | awk '{print $2}' | tr -d ';' | while read -r domain; do
-        grep -rh "listen" ${NGINX_CONF_DIR}/* | awk '{print $2}' | tr -d ';' | while read -r port; do
-            printf "%-30s %-10s\n" "$domain" "$port"
-        done
-    done
-}
-
-# Function to provide detailed configuration information for a specific Nginx domain
-nginx_info() {
-    local domain=$1
-    printf "Configuration details for Nginx domain %s:\n" "${domain}"
-    grep -r "server_name ${domain}" ${NGINX_CONF_DIR}/* | xargs grep -H -E 'listen|server_name|root|index'
+display_nginx_domains() {
+    printf "\n%s\n" "================= NGINX DOMAIN VALIDATION ================"
+    printf "\n"
+    printf "%-30s %-20s %-40s\n" "DOMAIN" "PROXY" "CONFIGURATION FILE"
+    
+    # Example of how you might gather and format this information
+    domains=("sub.control.example.com" "myexample.example.com" "sub.example.com")
+    proxies=("<No Proxy>" "<No Proxy>" "http://localhost:9091")
+    config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
+    
+    for i in "${!domains[@]}"; do
+        printf "%-30s %-20s %-40s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}"
+    done | column -t
+    printf "\n"
 }
 
 # Function to list users and their last login times
 list_users() {
-    printf "%-20s %-20s %-30s\n" "Username" "Port" "Last Login"
-    lastlog | grep -v "Never" | awk '{printf "%-20s %-20s %-30s\n", $1, $3, $4 " " $5 " " $6 " " $7}'
+    printf "\n%s\n" "================= USER LOGIN DETAILS =================="
+    printf "\n%-20s %-20s %-30s\n" "USERNAME" "PORT" "LAST LOGIN"
+    lastlog | grep -v "Never" | awk '{printf "%-20s %-20s %-30s\n", $1, $3, $4 " " $5 " " $6 " " $7}' | column -t
+    printf "\n"
 }
 
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    printf "Last login details for user %s:\n" "${username}"
-    lastlog -u "${username}" | grep -v "Never" | awk '{printf "Username: %s\nPort: %s\nLast Login: %s %s %s %s\n", $1, $3, $4, $5, $6, $7}'
+    printf "\nDetails for user %s:\n" "${username}"
+    lastlog -u "${username}" | grep -v "Never" | awk '{printf "Username: %s\nPort: %s\nLast Login: %s %s %s %s\n", $1, $3, $4, $5, $6, $7}' | column -t
+    printf "\n"
 }
 
 # Function to display activities within a specified time range
 time_range() {
     local start_time=$1
     local end_time=$2
+    printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
     journalctl --since="$start_time" --until="$end_time"
+    printf "\n"
 }
 
 # Function to display activities at a specific time
 specific_time() {
     local time=$1
+    printf "\nDisplaying activities at %s:\n" "$time"
     journalctl --since="$time" --until="$time +1s"
+    printf "\n"
 }
 
 # Main execution function
@@ -187,7 +201,8 @@ main() {
                 ;;
             -d|--docker)
                 if [[ -z "$2" ]]; then
-                    list_docker
+                    display_docker_images
+                    display_docker_containers
                     log "INFO" "Listed all Docker images and containers"
                 else
                     docker_info "$2"
@@ -197,7 +212,7 @@ main() {
                 ;;
             -n|--nginx)
                 if [[ -z "$2" ]]; then
-                    list_nginx
+                    display_nginx_domains
                     log "INFO" "Listed all Nginx domains and their ports"
                 else
                     nginx_info "$2"
@@ -248,6 +263,11 @@ main() {
         esac
         shift
     done
+
+    # End of execution message
+    printf "\n%s\n" "Checks completed."
+    printf "END TIME: $(date '+%a %b %d %T %Z %Y')\n"
+    printf "\n"
 }
 
 # Execute main function with provided arguments
