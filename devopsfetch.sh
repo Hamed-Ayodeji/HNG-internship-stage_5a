@@ -100,7 +100,7 @@ display_help() {
 
 # Function to list active ports and services
 list_ports() {
-    netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
+    netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s|%s|%s\n", a[2], $1, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
 }
 
 # Function to provide detailed information about a specific port
@@ -108,30 +108,30 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
+    netstat -tulnp | grep ":${port}\b" | awk '{printf "%s|%s|%s\n", $1, $4, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
 }
 
 # Function to list Docker images
 display_docker_images() {
-    docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | python3 "$PYTHON_FORMATTER" docker_images
+    docker images --format "{{.Repository}}|{{.Tag}}|{{.ID}}|{{.Size}}" | python3 "$PYTHON_FORMATTER" docker_images
 }
 
 # Function to list Docker containers
 display_docker_containers() {
-    docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | python3 "$PYTHON_FORMATTER" docker_containers
+    docker ps --format "{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}" | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
 # Function to provide detailed information about a specific Docker container
 docker_info() {
     local container_name=$1
-    docker inspect "$container_name" | jq '[.[] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports}]' | python3 "$PYTHON_FORMATTER" docker_containers
+    docker inspect "$container_name" | jq -r '[.[] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports}] | .[] | "\(.Name)|\(.Image)|\(.State)|\(.Ports)"' | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk -F: '{print $1,$2}' | while read -r file domain; do
-        proxy=$(grep "proxy_pass" "$file" || echo "<No Proxy>")
-        printf "%s %s %s\n" "$domain" "$proxy" "$file"
+    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk -F: '{print $1 "|" $2}' | while read -r file domain; do
+        proxy=$(grep "proxy_pass" "$file" | tr -d ' ' | awk -F'proxy_pass' '{print $2}' || echo "<No Proxy>")
+        printf "%s|%s|%s\n" "$domain" "$proxy" "$file"
     done | python3 "$PYTHON_FORMATTER" nginx
 }
 
@@ -149,14 +149,14 @@ nginx_info() {
 # Function to list users and their last login times
 list_users() {
     getent passwd | awk -F: '{print $1}' | while read -r user; do
-        lastlog -u "$user" | grep -v "Never" | grep -v "Username" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}'
+        lastlog -u "$user" | grep -v "Never" | grep -v "Username" | awk '{printf "%s|%s|%s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}'
     done | python3 "$PYTHON_FORMATTER" users
 }
 
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
+    lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s|%s|%s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
 }
 
 # Function to display activities within a specified time range
