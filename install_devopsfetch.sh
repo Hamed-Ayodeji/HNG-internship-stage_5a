@@ -2,8 +2,8 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-  sudo -E "$0" "$@"
-  exit
+    sudo -E "$0" "$@"
+    exit
 fi
 
 # Define the necessary paths and files
