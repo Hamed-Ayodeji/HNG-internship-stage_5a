@@ -95,69 +95,124 @@ display_help() {
     printf "\n"
 }
 
+# Function to create a bordered table with aligned columns
+create_table() {
+    local header="$1"
+    local data="$2"
+    local border
+
+    # Calculate the border length based on header length
+    border=$(printf '%*s' "${#header}" '' | tr ' ' '-')
+
+    # Print the top border
+    printf "+%s+\n" "$border"
+
+    # Print the header with aligned columns
+    printf "| %s |\n" "$header"
+
+    # Print the border below the header
+    printf "+%s+\n" "$border"
+
+    # Print the data rows with aligned columns
+    if [[ -n "$data" ]]; then
+        while IFS= read -r line; do
+            printf "| %s |\n" "$line"
+        done <<< "$data"
+    else
+        printf "| No data available |\n"
+    fi
+
+    # Print the bottom border
+    printf "+%s+\n" "$border"
+}
+
 # Function to list active ports and services
 list_ports() {
-    printf "\n%s\n" "================= ACTIVE PORTS =================="
-    printf "\n%-15s %-10s %-10s\n" "PORT" "PROTOCOL" "SERVICE"
-    netstat -tuln | awk 'NR>2 {split($4,a,":"); print a[2], $1, $7}' | column -t
-    printf "\n"
+    local header="PORT      PROTOCOL   SERVICE"
+    local data
+
+    data=$(netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%-8s %-8s %-s\n", a[2], $1, ($7 ? $7 : "-")}' | column -t)
+    
+    create_table "$header" "$data"
 }
 
 # Function to provide detailed information about a specific port
 port_info() {
     local port=$1
     validate_port "$port" || return 1
-    printf "\nDetails for port %s:\n" "${port}"
-    netstat -tulnp | grep ":${port}\b" | awk '{print "Protocol: "$1"\nAddress: "$4"\nPID/Program: "$7}' | column -t
-    printf "\n"
+
+    local header="PROTOCOL   ADDRESS                 PID/PROGRAM"
+    local data
+
+    data=$(netstat -tulnp | grep ":${port}\b" | awk '{printf "%-9s %-22s %-s\n", $1, $4, ($7 ? $7 : "-")}' | column -t)
+
+    create_table "$header" "$data"
 }
 
-# Function to list Docker images and containers
+# Function to list Docker images
 display_docker_images() {
-    printf "\n%s\n" "==================== DOCKER STATUS ===================="
-    printf "\n"
-    printf "%-20s %-10s %-20s %-10s\n" "REPOSITORY" "TAG" "IMAGE ID" "SIZE"
-    docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | column -t
-    printf "\n"
+    local header="REPOSITORY         TAG          IMAGE ID         SIZE"
+    local data
+
+    data=$(docker images --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" | awk '{printf "%-15s %-10s %-12s %-8s\n", $1, $2, $3, $4}' | column -t)
+
+    if [[ -z "$data" ]]; then
+        data="No Docker images found."
+    fi
+
+    create_table "$header" "$data"
 }
 
+# Function to list Docker containers
 display_docker_containers() {
-    printf "%-20s %-20s %-15s %-10s\n" "NAMES" "IMAGE" "STATUS" "PORTS"
-    docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | column -t
-    printf "\n"
+    local header="NAMES              IMAGE           STATUS       PORTS"
+    local data
+
+    data=$(docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '{printf "%-17s %-15s %-12s %-s\n", $1, $2, $3, ($4 ? $4 : "-")}' | column -t)
+
+    if [[ -z "$data" ]]; then
+        data="No Docker containers are currently running."
+    fi
+
+    create_table "$header" "$data"
 }
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    printf "\n%s\n" "================= NGINX DOMAIN VALIDATION ================"
-    printf "\n"
-    printf "%-30s %-20s %-40s\n" "DOMAIN" "PROXY" "CONFIGURATION FILE"
-    
-    # Example of how you might gather and format this information
+    local header="DOMAIN                             PROXY                     CONFIGURATION FILE"
+    local data
+
+    # Example data, replace with actual Nginx domain information
     domains=("sub.control.example.com" "myexample.example.com" "sub.example.com")
     proxies=("<No Proxy>" "<No Proxy>" "http://localhost:9091")
     config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
     
     for i in "${!domains[@]}"; do
-        printf "%-30s %-20s %-40s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}"
-    done | column -t
-    printf "\n"
+        data+=$(printf "%-30s %-22s %-s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}")$'\n'
+    done
+
+    create_table "$header" "$data"
 }
 
 # Function to list users and their last login times
 list_users() {
-    printf "\n%s\n" "================= USER LOGIN DETAILS =================="
-    printf "\n%-20s %-20s %-30s\n" "USERNAME" "PORT" "LAST LOGIN"
-    lastlog | grep -v "Never" | awk '{printf "%-20s %-20s %-30s\n", $1, $3, $4 " " $5 " " $6 " " $7}' | column -t
-    printf "\n"
+    local header="USERNAME         PORT          LAST LOGIN"
+    local data
+
+    data=$(lastlog | grep -v "Never" | awk '{printf "%-15s %-12s %-s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+
+    create_table "$header" "$data"
 }
 
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    printf "\nDetails for user %s:\n" "${username}"
-    lastlog -u "${username}" | grep -v "Never" | awk '{printf "Username: %s\nPort: %s\nLast Login: %s %s %s %s\n", $1, $3, $4, $5, $6, $7}' | column -t
-    printf "\n"
+    local header="USERNAME         PORT          LAST LOGIN"
+    local data
+
+    data=$(lastlog -u "${username}" | grep -v "Never" | awk '{printf "%-15s %-12s %-s\n", $1, ($3 ? $3 : "-"), $4 " " $5 " " $6 " " $7}' | column -t)
+
+    create_table "$header" "$data"
 }
 
 # Function to display activities within a specified time range
@@ -173,7 +228,7 @@ time_range() {
 specific_time() {
     local time=$1
     printf "\nDisplaying activities at %s:\n" "$time"
-    journalctl --since="$time" --until="$time +1s"
+    journalctl --since="$time" --until="$time +1 second"
     printf "\n"
 }
 
