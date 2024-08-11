@@ -31,12 +31,16 @@ def main():
     parser = argparse.ArgumentParser(description="Format and display the output of devopsfetch.sh")
     parser.add_argument("type", choices=["ports", "docker_images", "docker_containers", "nginx", "users"],
                         help="Type of output to format")
-    parser.add_argument("file", help="File containing the raw output from devopsfetch.sh")
+    parser.add_argument("file", nargs="?", type=argparse.FileType('r'),
+                        help="File containing the raw output from devopsfetch.sh")
 
     args = parser.parse_args()
 
-    with open(args.file, 'r') as f:
-        data = f.read()
+    # Read data from file or stdin
+    if args.file:
+        data = args.file.read()
+    else:
+        data = sys.stdin.read()
 
     if args.type == "ports":
         format_ports(data)
