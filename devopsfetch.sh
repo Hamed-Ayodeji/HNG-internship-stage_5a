@@ -40,7 +40,7 @@ log() {
 determine_nginx_conf_dir() {
     if command -v apt-get &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/sites-available"
-    elif command -v yum &> /null || command -v dnf &> /dev/null; then
+    elif command -v yum &> /dev/null || command -v dnf &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/conf.d"
     elif command -v zypper &> /dev/null; then
         NGINX_CONF_DIR="/etc/nginx/vhosts.d"
@@ -124,17 +124,14 @@ display_docker_containers() {
 # Function to provide detailed information about a specific Docker container
 docker_info() {
     local container_name=$1
-    docker inspect "$container_name" | python3 "$PYTHON_FORMATTER" docker_containers
+    docker inspect "$container_name" | jq '[.[] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports}]' | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    domains=("sub.control.example.com" "myexample.example.com" "sub.example.com")
-    proxies=("<No Proxy>" "<No Proxy>" "http://localhost:9091")
-    config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
-
-    for i in "${!domains[@]}"; do
-        printf "%s %s %s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}"
+    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk -F: '{print $1,$2}' | while read -r file domain; do
+        proxy=$(grep "proxy_pass" "$file" || echo "<No Proxy>")
+        printf "%s %s %s\n" "$domain" "$proxy" "$file"
     done | python3 "$PYTHON_FORMATTER" nginx
 }
 
@@ -151,7 +148,9 @@ nginx_info() {
 
 # Function to list users and their last login times
 list_users() {
-    lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
+    getent passwd | awk -F: '{print $1}' | while read -r user; do
+        lastlog -u "$user" | grep -v "Never" | grep -v "Username" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}'
+    done | python3 "$PYTHON_FORMATTER" users
 }
 
 # Function to provide detailed information about a specific user
