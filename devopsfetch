@@ -2,9 +2,12 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-  sudo -E "$0" "$@"
-  exit
+    sudo -E "$0" "$@"
+    exit
 fi
+
+# Path to the Python formatting script
+PYTHON_FORMATTER="./format_output.py"
 
 # Global variables
 CONFIG_FILE="/etc/devopsfetch.conf"
@@ -97,7 +100,7 @@ display_help() {
 
 # Function to list active ports and services
 list_ports() {
-    netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}'
+    netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
 }
 
 # Function to provide detailed information about a specific port
@@ -105,57 +108,39 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}'
+    netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
 }
 
 # Function to list Docker images
 display_docker_images() {
-    docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" || echo "No Docker images found."
+    docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | python3 "$PYTHON_FORMATTER" docker_images
 }
 
 # Function to list Docker containers
 display_docker_containers() {
-    docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" || echo "No Docker containers are currently running."
+    docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    # Example data, replace with actual Nginx domain information
     domains=("sub.control.example.com" "myexample.example.com" "sub.example.com")
     proxies=("<No Proxy>" "<No Proxy>" "http://localhost:9091")
     config_files=("/etc/nginx/sites-enabled/control.conf" "/etc/nginx/sites-enabled/default" "/etc/nginx/sites-enabled/subdomain.conf")
-    
+
     for i in "${!domains[@]}"; do
         printf "%s %s %s\n" "${domains[i]}" "${proxies[i]}" "${config_files[i]}"
-    done
+    done | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to list users and their last login times
 list_users() {
-    lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}'
+    lastlog | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
 }
 
 # Function to provide detailed information about a specific user
 user_info() {
     local username=$1
-    lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}'
-}
-
-# Function to display activities within a specified time range
-time_range() {
-    local start_time=$1
-    local end_time=$2
-    printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
-    journalctl --since="$start_time" --until="$end_time"
-    printf "\n"
-}
-
-# Function to display activities at a specific time
-specific_time() {
-    local time=$1
-    printf "\nDisplaying activities at %s:\n" "$time"
-    journalctl --since="$time" --until="$time +1 second"
-    printf "\n"
+    lastlog -u "${username}" | grep -v "Never" | awk '{printf "%s %s %s %s %s %s\n", $1, ($3 ? $3 : "-"), $4, $5, $6, $7}' | python3 "$PYTHON_FORMATTER" users
 }
 
 # Main execution function

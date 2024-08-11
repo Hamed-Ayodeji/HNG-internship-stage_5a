@@ -2,164 +2,83 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-    sudo -E "$0" "$@"
-    exit
+  sudo -E "$0" "$@"
+  exit
 fi
 
-# Global variables
-LOGFILE="/var/log/devopsfetch.log"
-LOGDIR=$(dirname "$LOGFILE")
-LOGROTATE_CONF="/etc/logrotate.d/devopsfetch"
-NGINX_CONF_DIR=""
-TIME_FORMAT="%Y-%m-%d %H:%M:%S"
-DEPENDENCIES=("net-tools" "jq" "docker" "nginx" "logrotate")
+# Define the necessary paths and files
+DEVOPS_SCRIPT="/usr/local/bin/devopsfetch"
+PYTHON_FORMATTER="/usr/local/bin/format_output.py"
+SERVICE_FILE="/etc/systemd/system/devopsfetch.service"
 
-# Declare an associative array to handle different package names and Nginx configuration paths
-declare -A DISTRO_PACKAGES
-declare -A NGINX_CONF_PATHS
-
-# Map package names and Nginx paths for different distros
-DISTRO_PACKAGES=( 
-    ["apt"]="net-tools jq docker.io nginx logrotate"
-    ["yum"]="net-tools jq docker nginx logrotate"
-    ["dnf"]="net-tools jq docker nginx logrotate"
-    ["zypper"]="net-tools jq docker nginx logrotate"
-    ["pacman"]="net-tools jq docker nginx logrotate"
-)
-
-NGINX_CONF_PATHS=(
-    ["apt"]="/etc/nginx/sites-available"
-    ["yum"]="/etc/nginx/conf.d"
-    ["dnf"]="/etc/nginx/conf.d"
-    ["zypper"]="/etc/nginx/vhosts.d"
-    ["pacman"]="/etc/nginx/sites-available"
-)
-
-# Functions
-
-# Function to detect package manager and install packages
-install_packages() {
-    local packages="$1"
+# Install system dependencies
+install_system_dependencies() {
+    # Update package list
     if command -v apt-get &> /dev/null; then
-        apt-get update -y
-        apt-get install -y $packages
-    elif command -v yum &> /dev/null; then
-        yum install -y $packages
-    elif command -v dnf &> /dev/null; then
-        dnf install -y $packages
+        sudo apt-get update
+        sudo apt-get install -y net-tools docker.io nginx python3 python3-pip
+    elif command -v yum &> /dev/null || command -v dnf &> /dev/null; then
+        sudo yum install -y net-tools docker nginx python3 python3-pip
     elif command -v zypper &> /dev/null; then
-        zypper install -y $packages
+        sudo zypper install -y net-tools docker nginx python3 python3-pip
     elif command -v pacman &> /dev/null; then
-        pacman -Sy --noconfirm $packages
+        sudo pacman -Sy --noconfirm net-tools docker nginx python3 python-pip
     else
-        printf "Unsupported package manager. Please install dependencies manually.\n" >&2
+        echo "Unsupported Linux distribution. Please install dependencies manually."
         exit 1
     fi
 }
 
-# Function to determine the package manager and install the correct packages
-check_and_install_dependencies() {
-    if command -v apt-get &> /dev/null; then
-        install_packages "${DISTRO_PACKAGES[apt]}"
-        NGINX_CONF_DIR="${NGINX_CONF_PATHS[apt]}"
-    elif command -v yum &> /dev/null; then
-        install_packages "${DISTRO_PACKAGES[yum]}"
-        NGINX_CONF_DIR="${NGINX_CONF_PATHS[yum]}"
-    elif command -v dnf &> /dev/null; then
-        install_packages "${DISTRO_PACKAGES[dnf]}"
-        NGINX_CONF_DIR="${NGINX_CONF_PATHS[dnf]}"
-    elif command -v zypper &> /dev/null; then
-        install_packages "${DISTRO_PACKAGES[zypper]}"
-        NGINX_CONF_DIR="${NGINX_CONF_PATHS[zypper]}"
-    elif command -v pacman &> /dev/null; then
-        install_packages "${DISTRO_PACKAGES[pacman]}"
-        NGINX_CONF_DIR="${NGINX_CONF_PATHS[pacman]}"
-    else
-        printf "Unsupported Linux distribution. Please install dependencies manually.\n" >&2
-        exit 1
-    fi
+# Install Python dependencies
+install_python_dependencies() {
+    # Ensure pip is up-to-date
+    sudo python3 -m pip install --upgrade pip
+
+    # Install required Python packages
+    sudo python3 -m pip install tabulate
 }
 
-# Function to ensure necessary directories and files exist
-ensure_directories_and_files() {
-    # Ensure log directory exists
-    if [[ ! -d "$LOGDIR" ]]; then
-        mkdir -p "$LOGDIR"
-        chmod 755 "$LOGDIR"
-    fi
+# Create necessary directories and files
+create_files_and_directories() {
+    # Copy the devopsfetch script
+    sudo cp devopsfetch.sh "$DEVOPS_SCRIPT"
+    sudo chmod +x "$DEVOPS_SCRIPT"
 
-    # Ensure log file exists
-    if [[ ! -f "$LOGFILE" ]]; then
-        touch "$LOGFILE"
-        chmod 644 "$LOGFILE"
-    fi
+    # Copy the Python formatter script
+    sudo cp format_output.py "$PYTHON_FORMATTER"
+    sudo chmod +x "$PYTHON_FORMATTER"
 
-    # Ensure Nginx configuration directory exists
-    if [[ ! -d "$NGINX_CONF_DIR" ]]; then
-        printf "Nginx configuration directory not found: $NGINX_CONF_DIR\n" >&2
-        exit 1
-    fi
-}
-
-# Function to create default configuration file if it doesn't exist
-create_default_config() {
-    if [[ ! -f "/etc/devopsfetch.conf" ]]; then
-        cat <<EOF > /etc/devopsfetch.conf
-# DevOpsFetch Configuration File
-LOGFILE='/var/log/devopsfetch.log'
-TIME_FORMAT='%Y-%m-%d %H:%M:%S'
-LOG_LEVEL='INFO'
-EOF
-        chmod 644 "/etc/devopsfetch.conf"
-    fi
-}
-
-# Systemd service creation
-setup_systemd_service() {
-    cat <<EOF > /etc/systemd/system/devopsfetch.service
+    # Create the systemd service file
+    sudo tee "$SERVICE_FILE" > /dev/null <<EOL
 [Unit]
-Description=DevOps Fetch Service
+Description=DevOpsFetch Monitoring Service
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/devopsfetch -p -d -n -u
-Restart=always
+ExecStart=$DEVOPS_SCRIPT
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl enable devopsfetch
-    systemctl start devopsfetch
+EOL
+    sudo chmod 644 "$SERVICE_FILE"
 }
 
-# Log rotation configuration
-setup_log_rotation() {
-    cat <<EOF > $LOGROTATE_CONF
-$LOGFILE {
-    daily
-    missingok
-    rotate 7
-    compress
-    delaycompress
-    notifempty
-    create 0640 root root
-}
-EOF
+# Enable and start the systemd service
+setup_systemd_service() {
+    sudo systemctl daemon-reload
+    sudo systemctl enable devopsfetch.service
+    sudo systemctl start devopsfetch.service
 }
 
-# Ensure devopsfetch script is installed and add to PATH
-install_script() {
-    cp devopsfetch /usr/local/bin/devopsfetch
-    chmod +x /usr/local/bin/devopsfetch
+# Main function
+main() {
+    install_system_dependencies
+    install_python_dependencies
+    create_files_and_directories
+    setup_systemd_service
+
+    echo "DevOpsFetch installation and setup completed."
 }
 
-# Check and install dependencies, setup systemd service, and ensure necessary files and directories
-check_and_install_dependencies
-ensure_directories_and_files
-install_script
-create_default_config
-setup_systemd_service
-setup_log_rotation
-
-printf "DevOpsFetch installation and setup completed.\n"
+main "$@"
