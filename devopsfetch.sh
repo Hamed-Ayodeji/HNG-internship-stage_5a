@@ -2,8 +2,8 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-    sudo -E "$0" "$@"
-    exit
+  sudo -E "$0" "$@"
+  exit
 fi
 
 # Path to the Python formatting script
@@ -124,7 +124,8 @@ display_docker_containers() {
 # Function to provide detailed information about a specific Docker container
 docker_info() {
     local container_name=$1
-    docker inspect "$container_name" | jq '[.[] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports}]' | python3 "$PYTHON_FORMATTER" docker_containers
+    docker inspect "$container_name" | jq -r '.[0] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports} | 
+    to_entries | map([.key, (.value|tostring)]) | .[] | @tsv' | python3 "$PYTHON_FORMATTER" docker_containers
 }
 
 # Function to display Nginx domains and their ports
@@ -138,12 +139,16 @@ display_nginx_domains() {
 # Function to provide detailed information about a specific Nginx domain
 nginx_info() {
     local domain_name=$1
-    local config_file=$(grep -irl "server_name.*$domain_name" $NGINX_CONF_DIR)
+    local config_file=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
     if [[ -z "$config_file" ]]; then
         printf "No configuration found for domain: %s\n" "$domain_name"
         return
     fi
-    cat "$config_file" | python3 "$PYTHON_FORMATTER" nginx
+    
+    grep -E "server_name|proxy_pass" "$config_file" | awk -v file="$config_file" '
+    /server_name/ {domain=$2}
+    /proxy_pass/ {proxy=$2}
+    END {if (!proxy) proxy="<No Proxy>"; printf "%s %s %s\n", domain, proxy, file}' | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to list users and their last login times
