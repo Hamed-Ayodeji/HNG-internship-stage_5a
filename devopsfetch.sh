@@ -187,9 +187,11 @@ docker_info() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk -F: '{print $1,$2}' | while read -r file domain; do
-        proxy=$(grep "proxy_pass" "$file" || echo "<No Proxy>")
-        printf "%s %s %s\n" "$domain" "$proxy" "$file"
+    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | while IFS=: read -r file line; do
+        domain=$(echo "$line" | awk '{print $2}')
+        proxy=$(grep -m 1 "proxy_pass" "$file" | awk '{print $2}')
+        proxy=${proxy:-"<No Proxy>"}
+        printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
     done | python3 "$PYTHON_FORMATTER" nginx
 }
 
@@ -205,7 +207,10 @@ nginx_info() {
     grep -E "server_name|proxy_pass" "$config_file" | awk -v file="$config_file" '
     /server_name/ {domain=$2}
     /proxy_pass/ {proxy=$2}
-    END {if (!proxy) proxy="<No Proxy>"; printf "%s %s %s\n", domain, proxy, file}' | python3 "$PYTHON_FORMATTER" nginx
+    END {
+        proxy=proxy ? proxy : "<No Proxy>";
+        printf "%s\t%s\t%s\n", domain, proxy, file
+    }' | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to list users and their last login times
