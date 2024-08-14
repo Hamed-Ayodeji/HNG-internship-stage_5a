@@ -295,7 +295,7 @@ time_range() {
 
     # If only one time argument is provided, set end_time to one second after start_time
     if [[ -z "$end_time" ]]; then
-        end_time=$(date -d "$start_time + 1 second" +"%Y-%m-%d %H:%M:%S")
+        end_time=$(date -d "$start_time 1 second" +"%Y-%m-%d %H:%M:%S")
     fi
 
     printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
