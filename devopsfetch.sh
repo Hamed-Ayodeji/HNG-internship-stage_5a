@@ -211,7 +211,17 @@ nginx_info() {
 # Function to list users and their last login times
 list_users() {
     local users_output
-    users_output=$(lastlog | awk 'NR>1 {if ($4 == "**Never") printf "%s\t**Never logged in**\n", $1; else printf "%s\t%s %s %s %s\n", $1, $4, $5, $6, $7}')
+    users_output=$(lastlog | awk 'NR>1 {
+        latest_login = ""; 
+        for(i=NF-5; i<=NF; i++) { 
+            latest_login = latest_login $i " " 
+        } 
+        if(latest_login ~ /\*\*Never logged in\*\*/) { 
+            printf "%s\t**Never logged in**\n", $1 
+        } else { 
+            printf "%s\t%s\n", $1, latest_login 
+        } 
+    }')
 
     if [[ -z "$users_output" ]]; then
         printf "No users found.\n"
@@ -225,7 +235,17 @@ user_info() {
     local username=$1
     local user_output
 
-    user_output=$(lastlog | awk -v user="$username" '$1 == user {if ($4 == "**Never") printf "%s\t**Never logged in**\n", $1; else printf "%s\t%s %s %s %s\n", $1, $4, $5, $6, $7}')
+    user_output=$(lastlog | awk -v user="$username" '$1 == user {
+        latest_login = ""; 
+        for(i=NF-5; i<=NF; i++) { 
+            latest_login = latest_login $i " " 
+        } 
+        if(latest_login ~ /\*\*Never logged in\*\*/) { 
+            printf "%s\t**Never logged in**\n", $1 
+        } else { 
+            printf "%s\t%s\n", $1, latest_login 
+        } 
+    }')
 
     if [[ -z "$user_output" ]]; then
         printf "No login record found for user: %s\n" "$username"
