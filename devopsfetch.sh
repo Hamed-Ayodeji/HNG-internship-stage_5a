@@ -189,7 +189,7 @@ docker_info() {
 display_nginx_domains() {
     find "$NGINX_CONF_DIR" -type f ! -name "*.bak" | while read -r file; do
         awk -v file="$file" '
-        BEGIN {proxy="<No Proxy>"; domain=""}
+        BEGIN {proxy="<No Proxy>"; domains=""}
         !/^#/ && $0 != "" {
             if ($1 == "server_name") {
                 domains=$0
