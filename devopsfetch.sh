@@ -288,22 +288,20 @@ user_info() {
     fi
 }
 
-# Function to display activities within a specified time range or at a specific time
+# Function to display activities within a specified time range or specific time
 time_range() {
     local start_time=$1
     local end_time=$2
 
-    # If only one timestamp is provided, set end_time to be the same as start_time
+    # If only one time argument is provided, set end_time to one second after start_time
     if [[ -z "$end_time" ]]; then
-        end_time=$(date -d "$start_time + 1 sec" +"%Y-%m-%d %H:%M:%S")
+        end_time=$(date -d "$start_time + 1 second" +"%Y-%m-%d %H:%M:%S")
     fi
 
     printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
-
     if ! journalctl --since="$start_time" --until="$end_time"; then
         printf "Failed to retrieve activities for the specified time range.\n" >&2
     fi
-
     printf "\n"
 }
 
