@@ -50,7 +50,6 @@ def format_users(data):
 def format_nginx_domains(data):
     headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
-    # Ensure that each row has the correct number of columns before printing
     filtered_rows = [row for row in rows if len(row) == 3]
     if filtered_rows:
         print(tabulate(filtered_rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
@@ -67,10 +66,7 @@ def main():
     args = parser.parse_args()
 
     # Read data from file or stdin
-    if args.file:
-        data = args.file.read()
-    else:
-        data = sys.stdin.read()
+    data = args.file.read() if args.file else sys.stdin.read()
 
     if args.type == "ports":
         format_ports_list(data)

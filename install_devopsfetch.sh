@@ -13,7 +13,6 @@ SERVICE_FILE="/etc/systemd/system/devopsfetch.service"
 
 # Install system dependencies
 install_system_dependencies() {
-    # Update package list
     if command -v apt-get &> /dev/null; then
         sudo apt-get update
         sudo apt-get install -y net-tools docker.io nginx python3 python3-pip
@@ -31,24 +30,18 @@ install_system_dependencies() {
 
 # Install Python dependencies
 install_python_dependencies() {
-    # Ensure pip is up-to-date
     sudo python3 -m pip install --upgrade pip
-
-    # Install required Python packages
     sudo python3 -m pip install tabulate
 }
 
 # Create necessary directories and files
 create_files_and_directories() {
-    # Copy the devopsfetch script
     sudo cp devopsfetch.sh "$DEVOPS_SCRIPT"
     sudo chmod +x "$DEVOPS_SCRIPT"
 
-    # Copy the Python formatter script
     sudo cp format_output.py "$PYTHON_FORMATTER"
     sudo chmod +x "$PYTHON_FORMATTER"
 
-    # Create the systemd service file
     sudo tee "$SERVICE_FILE" > /dev/null <<EOL
 [Unit]
 Description=DevOpsFetch Monitoring Service
