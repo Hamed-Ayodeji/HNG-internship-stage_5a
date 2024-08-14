@@ -223,14 +223,16 @@ nginx_info() {
             if (domain_found && $1 == "proxy_pass") {
                 proxy=$2
             }
-            if (domain_found && ($1 == "server_name" || $1 == "server" || $1 == "}")) {
-                printf "%s\t%s\t%s\n", domain, proxy, file
-                domain_found=0
+            if (domain_found && $1 == "server_name") {
+                if (outputted == 1) {
+                    printf "%s\t%s\t%s\n", domain, proxy, file
+                }
                 proxy="<No Proxy>"
+                outputted=1
             }
         }
         END {
-            if (domain_found) {
+            if (domain_found && outputted == 0) {
                 printf "%s\t%s\t%s\n", domain, proxy, file
             }
         }' >> output.txt
