@@ -40,9 +40,12 @@ def format_docker_info(data):
         print("No details found for the specified Docker container.")
 
 def format_users(data):
-    headers = ["USERNAME", "PORT", "LAST LOGIN"]
-    rows = [line.split(maxsplit=2) for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+    headers = ["USERNAME", "LAST LOGIN"]
+    rows = [line.split('\t', 1) for line in data.strip().split('\n')]
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left")))
+    else:
+        print("No users with login records found.")
 
 def main():
     parser = argparse.ArgumentParser(description="Format and display the output of devopsfetch.sh")
