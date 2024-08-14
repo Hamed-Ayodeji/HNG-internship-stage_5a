@@ -303,7 +303,11 @@ time_range() {
 specific_time() {
     local time=$1
     printf "\nDisplaying activities at %s:\n" "$time"
-    journalctl --since="$time" --until="$time +1 second"
+    
+    if ! journalctl --since="$time" --until="$(date -d "$time +1 second" +"%Y-%m-%d %H:%M:%S")"; then
+        printf "Failed to retrieve activities for the specified time.\n" >&2
+    fi
+    
     printf "\n"
 }
 
