@@ -202,7 +202,6 @@ display_nginx_domains() {
 nginx_info() {
     local domain_name=$1
     local config_files
-    local found=false
     local output=""
 
     # Find all configuration files containing the specified domain
@@ -224,7 +223,7 @@ nginx_info() {
             if (domain_found && $1 == "proxy_pass") {
                 proxy=$2
             }
-            if (domain_found && $1 == "server_name" && index($0, domain) == 0) {
+            if (domain_found && ($1 == "server_name" || $1 == "server" || $1 == "}")) {
                 printf "%s\t%s\t%s\n", domain, proxy, file
                 domain_found=0
                 proxy="<No Proxy>"
