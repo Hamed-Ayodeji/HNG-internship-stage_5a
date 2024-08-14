@@ -203,6 +203,7 @@ nginx_info() {
     local domain_name=$1
     local config_files
     local found=false
+    local output=""
 
     # Find all configuration files containing the specified domain
     config_files=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
@@ -228,20 +229,16 @@ nginx_info() {
             if (domain_found) {
                 printf "%s\t%s\t%s\n", domain, proxy, file
             }
-        }' | while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                printf "%s\n" "$line"
-                found=true
-            fi
-        done
+        }' >> output.txt
     done
 
-    # If no domain was found, print a message
-    if [[ "$found" == false ]]; then
-        printf "No configuration found for domain: %s\n" "$domain_name"
+    # If output.txt is not empty, print the contents and format them
+    if [[ -s output.txt ]]; then
+        cat output.txt | python3 "$PYTHON_FORMATTER" nginx
+        rm -f output.txt
     else
-        # If domains were found, pass them to the formatter
-        printf "%s\n" "$output" | python3 "$PYTHON_FORMATTER" nginx
+        printf "No configuration found for domain: %s\n" "$domain_name"
+        rm -f output.txt
     fi
 }
 
