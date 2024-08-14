@@ -192,19 +192,19 @@ display_nginx_domains() {
         BEGIN {proxy="<No Proxy>"; domain=""}
         !/^#/ && $0 != "" {
             if ($1 == "server_name") {
-                domain=$0
-                sub(/^server_name[[:space:]]+/, "", domain)  # Correct handling of server_name
-                sub(/;$/, "", domain)
+                domains=$0
+                sub(/^server_name[[:space:]]+/, "", domains)  # Remove server_name and leading spaces
+                sub(/;$/, "", domains)  # Remove trailing semicolon
             }
             if ($1 == "proxy_pass") {
                 proxy=$2
             }
-            if ($0 ~ /}/ && domain != "") {
-                split(domain, domain_arr, " ")
+            if ($0 ~ /}/ && domains != "") {
+                split(domains, domain_arr, " ")
                 for (d in domain_arr) {
                     printf "%s\t%s\t%s\n", domain_arr[d], proxy, file
                 }
-                domain=""
+                domains=""
                 proxy="<No Proxy>"
             }
         }' "$file"
@@ -233,8 +233,8 @@ nginx_info() {
             if ($1 == "server_name" && index($0, domain) > 0) {
                 domain_found=1
                 domains=$0
-                sub(/^server_name[[:space:]]+/, "", domains)  # Correct handling of server_name
-                sub(/;$/, "", domains)
+                sub(/^server_name[[:space:]]+/, "", domains)  # Remove server_name and leading spaces
+                sub(/;$/, "", domains)  # Remove trailing semicolon
             }
             if (domain_found && $1 == "proxy_pass") {
                 proxy=$2
