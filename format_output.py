@@ -49,7 +49,7 @@ def format_users(data):
 
 def format_nginx_domains(data):
     headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
-    rows = [line.split() for line in data.strip().split('\n')]
+    rows = [line.split('\t') for line in data.strip().split('\n')]
     if rows:
         print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
     else:
