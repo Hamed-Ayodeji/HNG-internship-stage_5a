@@ -2,8 +2,13 @@ import sys
 import argparse
 from tabulate import tabulate
 
-def format_ports(data):
+def format_ports_list(data):
     headers = ["PORT", "PROTOCOL", "SERVICE"]
+    rows = [line.split() for line in data.strip().split('\n')]
+    print(tabulate(rows, headers, tablefmt="grid"))
+
+def format_port_info(data):
+    headers = ["PROTOCOL", "PORT", "IP", "PID", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
     print(tabulate(rows, headers, tablefmt="grid"))
 
@@ -29,7 +34,7 @@ def format_users(data):
 
 def main():
     parser = argparse.ArgumentParser(description="Format and display the output of devopsfetch.sh")
-    parser.add_argument("type", choices=["ports", "docker_images", "docker_containers", "nginx", "users"],
+    parser.add_argument("type", choices=["ports", "port_info", "docker_images", "docker_containers", "nginx", "users"],
                         help="Type of output to format")
     parser.add_argument("file", nargs="?", type=argparse.FileType('r'),
                         help="File containing the raw output from devopsfetch.sh")
@@ -43,7 +48,9 @@ def main():
         data = sys.stdin.read()
 
     if args.type == "ports":
-        format_ports(data)
+        format_ports_list(data)
+    elif args.type == "port_info":
+        format_port_info(data)
     elif args.type == "docker_images":
         format_docker_images(data)
     elif args.type == "docker_containers":

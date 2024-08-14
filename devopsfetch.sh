@@ -100,7 +100,11 @@ display_help() {
 
 # Function to list active ports and services
 list_ports() {
-    netstat -tuln | awk 'NR>2 {split($4,a,":"); printf "%s %s %s\n", a[2], $1, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
+    netstat -tulnp | awk 'NR>2 {
+        split($4, a, ":"); 
+        split($7, proc, "/"); 
+        printf "%s %s %s\n", a[2], $1, (proc[2] ? proc[2] : "-")
+    }' | python3 "$PYTHON_FORMATTER" ports
 }
 
 # Function to provide detailed information about a specific port
@@ -111,10 +115,9 @@ port_info() {
     netstat -tulnp | grep ":${port}\b" | awk '{
         split($7, proc, "/"); 
         split($4, addr, ":"); 
-        printf "%s %s:%s %s %s\n", $1, addr[1], addr[2], (proc[1] ? proc[1] : "-"), (proc[2] ? proc[2] : "-")
-    }' | python3 "$PYTHON_FORMATTER" ports
+        printf "%s %s %s %s %s\n", $1, addr[2], addr[1], (proc[1] ? proc[1] : "-"), (proc[2] ? proc[2] : "-")
+    }' | python3 "$PYTHON_FORMATTER" port_info
 }
-
 
 # Function to list Docker images
 display_docker_images() {
