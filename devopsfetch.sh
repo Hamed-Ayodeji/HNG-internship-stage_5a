@@ -187,14 +187,27 @@ docker_info() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f ! -name "*.bak" -exec grep -H "server_name" {} \; | awk '!/^#/ && $0 != ""' | while read -r line; do
-        file=$(echo "$line" | awk -F: '{print $1}')
-        domains=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/server_name //; s/;$//')
-        proxy=$(grep -m1 "proxy_pass" "$file" | awk '!/^#/ && $0 != "" {print $2}')
-        [[ -z "$proxy" ]] && proxy="<No Proxy>"
-        for domain in $domains; do
-            printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
-        done
+    find "$NGINX_CONF_DIR" -type f ! -name "*.bak" | while read -r file; do
+        awk -v file="$file" '
+        BEGIN {proxy="<No Proxy>"}
+        !/^#/ && $0 != "" {
+            if ($1 == "server_name") {
+                domains=$0
+                sub(/^server_name /, "", domains)
+                sub(/;$/, "", domains)
+            }
+            if ($1 == "proxy_pass") {
+                proxy=$2
+            }
+            if ($0 ~ /}/ && domains != "") {
+                split(domains, domain_arr, " ")
+                for (domain in domain_arr) {
+                    printf "%s\t%s\t%s\n", domain_arr[domain], proxy, file
+                }
+                domains=""
+                proxy="<No Proxy>"
+            }
+        }' "$file"
     done | sort | uniq | python3 "$PYTHON_FORMATTER" nginx
 }
 
@@ -223,9 +236,10 @@ nginx_info() {
             if (domain_found && $1 == "proxy_pass") {
                 proxy=$2
             }
-            if (domain_found && $1 == "server_name") {
+            if (domain_found && $0 ~ /}/) {
                 printf "%s\t%s\t%s\n", domain, proxy, file
                 domain_found=0
+                proxy="<No Proxy>"
             }
         }' "$config_file" >> output.txt
     done
