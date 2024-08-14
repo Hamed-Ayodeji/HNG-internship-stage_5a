@@ -302,9 +302,14 @@ time_range() {
 # Function to display activities at a specific time
 specific_time() {
     local time=$1
+    local next_time
+    
+    # Calculate the next second after the given time
+    next_time=$(date -d "$time +1 second" +"%Y-%m-%d %H:%M:%S")
+    
     printf "\nDisplaying activities at %s:\n" "$time"
     
-    if ! journalctl --since="$time" --until="$(date -d "$time +1 second" +"%Y-%m-%d %H:%M:%S")"; then
+    if ! journalctl --since="$time" --until="$next_time"; then
         printf "Failed to retrieve activities for the specified time.\n" >&2
     fi
     
