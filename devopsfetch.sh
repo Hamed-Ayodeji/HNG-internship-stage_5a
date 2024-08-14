@@ -82,12 +82,10 @@ display_help() {
     printf "                               Example:\n"
     printf "                               devopsfetch -u              # Lists all users and their last login times\n"
     printf "                               devopsfetch -u john         # Displays last login details for user 'john'\n\n"
-    printf "  -t, --time START END         Display activities within a specified time range.\n"
+    printf "  -t, --time START [END]       Display activities within a specified time range or at a specific time.\n"
     printf "                               Example:\n"
-    printf "                               devopsfetch -t '2023-08-01 00:00:00' '2023-08-01 23:59:59'  # Displays activities within this range\n\n"
-    printf "  -s, --specific TIME          Display activities at a specific time.\n"
-    printf "                               Example:\n"
-    printf "                               devopsfetch -s '2023-08-01 12:00:00'  # Displays activities at the specified time\n\n"
+    printf "                               devopsfetch -t '2023-08-01 00:00:00' '2023-08-01 23:59:59'  # Displays activities within this range\n"
+    printf "                               devopsfetch -t '2023-08-01 12:00:00'  # Displays activities at the specific time\n\n"
     printf "  -h, --help                   Show this help message and exit.\n\n"
     printf "Config File:\n"
     printf "  You can customize DevOpsFetch's behavior by creating a configuration file at /etc/devopsfetch.conf.\n"
@@ -290,27 +288,20 @@ user_info() {
     fi
 }
 
-# Function to display activities within a specified time range
+# Function to display activities within a specified time range or at a specific time
 time_range() {
     local start_time=$1
     local end_time=$2
+
+    # If only one timestamp is provided, set end_time to be the same as start_time
+    if [[ -z "$end_time" ]]; then
+        end_time=$(date -d "$start_time + 1 sec" +"%Y-%m-%d %H:%M:%S")
+    fi
+
     printf "\nDisplaying activities from %s to %s:\n" "$start_time" "$end_time"
-    journalctl --since="$start_time" --until="$end_time"
-    printf "\n"
-}
 
-# Function to display activities at a specific time
-specific_time() {
-    local time=$1
-    local next_time
-
-    # Calculate the next second after the given time
-    next_time=$(date -d "$time + 1 sec" +"%Y-%m-%d %H:%M:%S")
-
-    printf "\nDisplaying activities at %s:\n" "$time"
-
-    if ! journalctl --since="$time" --until="$next_time"; then
-        printf "Failed to retrieve activities for the specified time.\n" >&2
+    if ! journalctl --since="$start_time" --until="$end_time"; then
+        printf "Failed to retrieve activities for the specified time range.\n" >&2
     fi
 
     printf "\n"
@@ -370,23 +361,13 @@ main() {
                 fi
                 ;;
             -t|--time)
-                if [[ -n "$2" && -n "$3" ]]; then
+                if [[ -n "$2" ]]; then
                     time_range "$2" "$3"
-                    log "INFO" "Displayed activities from $2 to $3"
+                    log "INFO" "Displayed activities from $2 to ${3:-$2}"
                     shift 2
                 else
-                    log "ERROR" "Time range requires a start and end time."
-                    printf "Error: Time range requires a start and end time.\n" >&2
-                fi
-                ;;
-            -s|--specific)
-                if [[ -n "$2" ]]; then
-                    specific_time "$2"
-                    log "INFO" "Displayed activities at $2"
-                    shift
-                else
-                    log "ERROR" "Specific time requires a valid time input."
-                    printf "Error: Specific time requires a valid time input.\n" >&2
+                    log "ERROR" "Time range requires at least a start time."
+                    printf "Error: Time range requires at least a start time.\n" >&2
                 fi
                 ;;
             -h|--help)
