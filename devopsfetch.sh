@@ -201,14 +201,36 @@ display_nginx_domains() {
 # Function to provide detailed information about a specific Nginx domain
 nginx_info() {
     local domain_name=$1
-    local config_file=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
+    local config_files
 
-    if [[ -z "$config_file" ]]; then
+    # Find all configuration files containing the specified domain
+    config_files=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
+
+    if [[ -z "$config_files" ]]; then
         printf "No configuration found for domain: %s\n" "$domain_name"
         return
     fi
 
-    grep -E "server_name|proxy_pass" "$config_file" | awk '!/^#/ && $0 != "" {if ($1 == "server_name") domain=$2; if ($1 == "proxy_pass") proxy=$2} END {if (!proxy) proxy="<No Proxy>"; printf "%s\t%s\t%s\n", domain, proxy, FILENAME}' | python3 "$PYTHON_FORMATTER" nginx
+    # Loop through each file to gather relevant information
+    for config_file in $config_files; do
+        grep -E "server_name|proxy_pass" "$config_file" | awk -v domain="$domain_name" -v file="$config_file" '
+        !/^#/ && $0 != "" {
+            if ($1 == "server_name") {
+                if (index($0, domain) > 0) {
+                    domain_found=1
+                }
+            }
+            if (domain_found && $1 == "proxy_pass") {
+                proxy = $2
+            }
+        }
+        END {
+            if (domain_found) {
+                if (!proxy) proxy="<No Proxy>"
+                printf "%s\t%s\t%s\n", domain, proxy, file
+            }
+        }'
+    done | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to list users and their last login times
