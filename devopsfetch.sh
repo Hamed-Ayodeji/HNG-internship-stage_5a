@@ -141,7 +141,8 @@ display_docker_images() {
     if [[ -z "$images_output" ]]; then
         printf "No Docker images found.\n"
     else
-        printf "Docker Images:\n\n%s\n" "$images_output" | python3 "$PYTHON_FORMATTER" docker_images
+        printf "Docker Images:\n"
+        printf "%s\n" "$images_output" | python3 "$PYTHON_FORMATTER" docker_images
     fi
 }
 
@@ -153,10 +154,10 @@ display_docker_containers() {
     if [[ -z "$containers_output" ]]; then
         printf "No running Docker containers found.\n"
     else
-        printf "Docker Containers:\n\n%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
+        printf "Docker Containers:\n"
+        printf "%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
     fi
 }
-
 
 # Function to provide detailed information about a specific Docker container
 docker_info() {
