@@ -216,13 +216,18 @@ nginx_info() {
     # Loop through each file to gather relevant information
     for config_file in $config_files; do
         grep -E "server_name|proxy_pass" "$config_file" | awk -v domain="$domain_name" -v file="$config_file" '
-        BEGIN { proxy="<No Proxy>"; domain_found=0 }
+        BEGIN {proxy="<No Proxy>"; domain_found=0}
         !/^#/ && $0 != "" {
             if ($1 == "server_name" && index($0, domain) > 0) {
                 domain_found=1
             }
             if (domain_found && $1 == "proxy_pass") {
-                proxy = $2
+                proxy=$2
+            }
+            if (domain_found && $1 == "server_name" && index($0, domain) == 0) {
+                printf "%s\t%s\t%s\n", domain, proxy, file
+                domain_found=0
+                proxy="<No Proxy>"
             }
         }
         END {
