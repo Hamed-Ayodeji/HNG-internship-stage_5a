@@ -136,12 +136,12 @@ port_info() {
 # Function to list Docker images
 display_docker_images() {
     local images_output
-    images_output=$(docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}')
+    images_output=$(docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, $4}')
 
     if [[ -z "$images_output" ]]; then
         printf "No Docker images found.\n"
     else
-        printf "%s\n" "$images_output" | python3 "$PYTHON_FORMATTER" docker_images
+        printf "Docker Images:\n\n%s\n" "$images_output" | python3 "$PYTHON_FORMATTER" docker_images
     fi
 }
 
@@ -153,9 +153,10 @@ display_docker_containers() {
     if [[ -z "$containers_output" ]]; then
         printf "No running Docker containers found.\n"
     else
-        printf "%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
+        printf "Docker Containers:\n\n%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
     fi
 }
+
 
 # Function to provide detailed information about a specific Docker container
 docker_info() {
