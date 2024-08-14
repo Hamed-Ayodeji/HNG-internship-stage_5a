@@ -2,11 +2,13 @@ import sys
 import argparse
 from tabulate import tabulate
 
+# Function to format and display the list of active ports and their services.
 def format_ports_list(data):
     headers = ["PORT", "PROTOCOL", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
     print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
 
+# Function to format and display detailed information about a specific port.
 def format_port_info(data):
     headers = ["PROTOCOL", "PORT", "IP", "PID", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
@@ -15,6 +17,7 @@ def format_port_info(data):
     else:
         print("No service is using the specified port.")
 
+# Function to format and display the list of Docker images.
 def format_docker_images(data):
     headers = ["REPOSITORY", "TAG", "IMAGE ID", "SIZE"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
@@ -23,6 +26,7 @@ def format_docker_images(data):
     else:
         print("No Docker images found.")
 
+# Function to format and display the list of Docker containers.
 def format_docker_containers(data):
     headers = ["NAMES", "IMAGE", "STATUS", "PORTS"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
@@ -31,6 +35,7 @@ def format_docker_containers(data):
     else:
         print("No running Docker containers found.")
 
+# Function to format and display detailed information about a specific Docker container.
 def format_docker_info(data):
     headers = ["ATTRIBUTE", "VALUE"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
@@ -39,6 +44,7 @@ def format_docker_info(data):
     else:
         print("No details found for the specified Docker container.")
 
+# Function to format and display the list of users and their last login times.
 def format_users(data):
     headers = ["USERNAME", "LAST LOGIN"]
     rows = [line.split('\t', 1) for line in data.strip().split('\n')]
@@ -47,6 +53,7 @@ def format_users(data):
     else:
         print("No users with login records found.")
 
+# Function to format and display the list of Nginx domains and their configuration files.
 def format_nginx_domains(data):
     headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
@@ -56,6 +63,7 @@ def format_nginx_domains(data):
     else:
         print("No Nginx domains found.")
 
+# Main function to handle command-line arguments and call the appropriate formatting function.
 def main():
     parser = argparse.ArgumentParser(description="Format and display the output of devopsfetch.sh")
     parser.add_argument("type", choices=["ports", "port_info", "docker_images", "docker_containers", "docker_info", "nginx", "users"],
@@ -65,9 +73,10 @@ def main():
 
     args = parser.parse_args()
 
-    # Read data from file or stdin
+    # Read data from file or stdin.
     data = args.file.read() if args.file else sys.stdin.read()
 
+    # Call the appropriate formatting function based on the command-line argument.
     if args.type == "ports":
         format_ports_list(data)
     elif args.type == "port_info":
@@ -83,5 +92,6 @@ def main():
     elif args.type == "users":
         format_users(data)
 
+# Execute the main function.
 if __name__ == "__main__":
     main()
