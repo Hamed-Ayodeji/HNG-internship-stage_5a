@@ -46,7 +46,7 @@ def format_users(data):
 
 def main():
     parser = argparse.ArgumentParser(description="Format and display the output of devopsfetch.sh")
-    parser.add_argument("type", choices=["ports", "port_info", "docker_images", "docker_containers", "nginx", "users"],
+    parser.add_argument("type", choices=["ports", "port_info", "docker_images", "docker_containers", "docker_info", "nginx", "users"],
                         help="Type of output to format")
     parser.add_argument("file", nargs="?", type=argparse.FileType('r'),
                         help="File containing the raw output from devopsfetch.sh")
@@ -67,6 +67,8 @@ def main():
         format_docker_images(data)
     elif args.type == "docker_containers":
         format_docker_containers(data)
+    elif args.type == "docker_info":
+        format_docker_info(data)
     elif args.type == "nginx":
         format_nginx_domains(data)
     elif args.type == "users":

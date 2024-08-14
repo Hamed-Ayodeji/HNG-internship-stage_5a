@@ -148,7 +148,7 @@ display_docker_images() {
 # Function to list Docker containers
 display_docker_containers() {
     local containers_output
-    containers_output=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}')
+    containers_output=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, ($4 ? $4 : "None")}')
 
     if [[ -z "$containers_output" ]]; then
         printf "No running Docker containers found.\n"
@@ -166,13 +166,13 @@ docker_info() {
         "Name": (.Name | ltrimstr("/")),
         "Image": .Config.Image,
         "State": .State.Status,
-        "Ports": (.NetworkSettings.Pports | tostring)
+        "Ports": (if (.NetworkSettings.Ports | length) > 0 then (.NetworkSettings.Ports | to_entries | map(.key) | join(", ")) else "None" end)
     } | to_entries | map([.key, .value]) | .[] | @tsv')
 
     if [[ -z "$container_details" ]]; then
         printf "No details found for Docker container: %s\n" "$container_name"
     else
-        echo "$container_details" | awk '{printf "%s %s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
+        echo "$container_details" | awk '{printf "%s\t%s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
     fi
 }
 
