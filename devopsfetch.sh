@@ -164,13 +164,17 @@ display_docker_containers() {
 docker_info() {
     local container_name=$1
     local container_details
+    local container_state
 
-    # Check if the container exists
-    if ! docker inspect "$container_name" > /dev/null 2>&1; then
-        printf "No details found for Docker container: %s\n" "$container_name"
+    # Check if the container exists and is running
+    container_state=$(docker inspect --format="{{.State.Status}}" "$container_name" 2>/dev/null)
+
+    if [[ "$container_state" != "running" ]]; then
+        printf "The Docker container '%s' is not running or does not exist.\n" "$container_name"
         return
     fi
 
+    # If the container is running, gather details
     container_details=$(docker inspect "$container_name" 2>/dev/null | jq -r '.[0] | {
         "Name": (.Name | ltrimstr("/")),
         "Image": .Config.Image,
