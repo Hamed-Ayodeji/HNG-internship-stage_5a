@@ -193,7 +193,7 @@ display_nginx_domains() {
         !/^#/ && $0 != "" {
             if ($1 == "server_name") {
                 domain=$0
-                sub(/^server_name /, "", domain)
+                sub(/^server_name[[:space:]]+/, "", domain)  # Correct handling of server_name
                 sub(/;$/, "", domain)
             }
             if ($1 == "proxy_pass") {
@@ -233,7 +233,7 @@ nginx_info() {
             if ($1 == "server_name" && index($0, domain) > 0) {
                 domain_found=1
                 domains=$0
-                sub(/^server_name /, "", domains)
+                sub(/^server_name[[:space:]]+/, "", domains)  # Correct handling of server_name
                 sub(/;$/, "", domains)
             }
             if (domain_found && $1 == "proxy_pass") {
