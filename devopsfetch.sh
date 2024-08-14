@@ -135,19 +135,45 @@ port_info() {
 
 # Function to list Docker images
 display_docker_images() {
-    docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | python3 "$PYTHON_FORMATTER" docker_images
+    local images_output
+    images_output=$(docker images --format "{{.Repository}} {{.Tag}} {{.ID}} {{.Size}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}')
+
+    if [[ -z "$images_output" ]]; then
+        printf "No Docker images found.\n"
+    else
+        printf "%s\n" "$images_output" | python3 "$PYTHON_FORMATTER" docker_images
+    fi
 }
 
 # Function to list Docker containers
 display_docker_containers() {
-    docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | python3 "$PYTHON_FORMATTER" docker_containers
+    local containers_output
+    containers_output=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s %s %s %s\n", $1, $2, $3, $4}')
+
+    if [[ -z "$containers_output" ]]; then
+        printf "No running Docker containers found.\n"
+    else
+        printf "%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
+    fi
 }
 
 # Function to provide detailed information about a specific Docker container
 docker_info() {
     local container_name=$1
-    docker inspect "$container_name" | jq -r '.[0] | {Name: .Name, Image: .Config.Image, State: .State.Status, Ports: .NetworkSettings.Ports} | 
-    to_entries | map([.key, (.value|tostring)]) | .[] | @tsv' | python3 "$PYTHON_FORMATTER" docker_containers
+    local container_details
+
+    container_details=$(docker inspect "$container_name" 2>/dev/null | jq -r '.[0] | {
+        "Name": (.Name | ltrimstr("/")),
+        "Image": .Config.Image,
+        "State": .State.Status,
+        "Ports": (.NetworkSettings.Pports | tostring)
+    } | to_entries | map([.key, .value]) | .[] | @tsv')
+
+    if [[ -z "$container_details" ]]; then
+        printf "No details found for Docker container: %s\n" "$container_name"
+    else
+        echo "$container_details" | awk '{printf "%s %s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
+    fi
 }
 
 # Function to display Nginx domains and their ports

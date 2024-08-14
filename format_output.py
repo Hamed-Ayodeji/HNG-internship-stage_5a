@@ -18,17 +18,26 @@ def format_port_info(data):
 def format_docker_images(data):
     headers = ["REPOSITORY", "TAG", "IMAGE ID", "SIZE"]
     rows = [line.split() for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left", "left")))
+    else:
+        print("No Docker images found.")
 
 def format_docker_containers(data):
     headers = ["NAMES", "IMAGE", "STATUS", "PORTS"]
-    rows = [line.split(maxsplit=3) for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+    rows = [line.split() for line in data.strip().split('\n')]
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left", "left")))
+    else:
+        print("No running Docker containers found.")
 
-def format_nginx_domains(data):
-    headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
-    rows = [line.split(maxsplit=2) for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+def format_docker_info(data):
+    headers = ["ATTRIBUTE", "VALUE"]
+    rows = [line.split('\t') for line in data.strip().split('\n')]
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left")))
+    else:
+        print("No details found for the specified Docker container.")
 
 def format_users(data):
     headers = ["USERNAME", "PORT", "LAST LOGIN"]
