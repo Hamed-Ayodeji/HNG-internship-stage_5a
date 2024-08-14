@@ -187,27 +187,25 @@ docker_info() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | while read -r file; do
-        domain=$(echo "$file" | awk -F' ' '{print $2}')
-        proxy=$(grep "proxy_pass" "$(echo "$file" | awk -F: '{print $1}')" | awk -F' ' '{print $2}')
-        if [[ -z "$proxy" ]]; then
-            proxy="<No Proxy>"
-        fi
-        config_file=$(echo "$file" | awk -F: '{print $1}')
-        printf "%s\t%s\t%s\n" "$domain" "$proxy" "$config_file"
-    done | python3 "$PYTHON_FORMATTER" nginx
+    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | while read -r line; do
+        file=$(echo "$line" | awk -F: '{print $1}')
+        domain=$(echo "$line" | awk -F' ' '{print $2}')
+        proxy=$(grep "proxy_pass" "$file" | awk -F' ' '{print $2}')
+        [[ -z "$proxy" ]] && proxy="<No Proxy>"
+        printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
+    done | sort | uniq | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to provide detailed information about a specific Nginx domain
 nginx_info() {
     local domain_name=$1
     local config_file=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
-    
+
     if [[ -z "$config_file" ]]; then
         printf "No configuration found for domain: %s\n" "$domain_name"
         return
     fi
-    
+
     grep -E "server_name|proxy_pass" "$config_file" | awk -v file="$config_file" '
     /server_name/ {domain=$2}
     /proxy_pass/ {proxy=$2}

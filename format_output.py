@@ -50,8 +50,10 @@ def format_users(data):
 def format_nginx_domains(data):
     headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
     rows = [line.split('\t') for line in data.strip().split('\n')]
-    if rows:
-        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
+    # Ensure that each row has the correct number of columns before printing
+    filtered_rows = [row for row in rows if len(row) == 3]
+    if filtered_rows:
+        print(tabulate(filtered_rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
     else:
         print("No Nginx domains found.")
 
