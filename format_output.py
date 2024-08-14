@@ -5,12 +5,15 @@ from tabulate import tabulate
 def format_ports_list(data):
     headers = ["PORT", "PROTOCOL", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+    print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
 
 def format_port_info(data):
     headers = ["PROTOCOL", "PORT", "IP", "PID", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
-    print(tabulate(rows, headers, tablefmt="grid"))
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left", "left", "left")))
+    else:
+        print("No service is using the specified port.")
 
 def format_docker_images(data):
     headers = ["REPOSITORY", "TAG", "IMAGE ID", "SIZE"]
