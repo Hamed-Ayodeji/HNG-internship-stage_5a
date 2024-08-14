@@ -17,7 +17,7 @@ def format_port_info(data):
 
 def format_docker_images(data):
     headers = ["REPOSITORY", "TAG", "IMAGE ID", "SIZE"]
-    rows = [line.split() for line in data.strip().split('\n')]
+    rows = [line.split('\t') for line in data.strip().split('\n')]
     if rows:
         print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left", "left")))
     else:
@@ -25,7 +25,7 @@ def format_docker_images(data):
 
 def format_docker_containers(data):
     headers = ["NAMES", "IMAGE", "STATUS", "PORTS"]
-    rows = [line.split() for line in data.strip().split('\n')]
+    rows = [line.split('\t') for line in data.strip().split('\n')]
     if rows:
         print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left", "left")))
     else:

@@ -149,13 +149,14 @@ display_docker_images() {
 # Function to list Docker containers
 display_docker_containers() {
     local containers_output
-    containers_output=$(docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, ($4 ? $4 : "None")}')
+
+    containers_output=$(docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}")
 
     if [[ -z "$containers_output" ]]; then
         printf "No running Docker containers found.\n"
     else
         printf "Docker Containers:\n"
-        printf "%s\n" "$containers_output" | python3 "$PYTHON_FORMATTER" docker_containers
+        echo "$containers_output" | awk -F'\t' '{ printf "%s\t%s\t%s\t%s\n", $1, $2, $3, ($4 ? $4 : "None") }' | python3 "$PYTHON_FORMATTER" docker_containers
     fi
 }
 
