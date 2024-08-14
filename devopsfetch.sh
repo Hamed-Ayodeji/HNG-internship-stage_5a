@@ -211,10 +211,10 @@ nginx_info() {
 # Function to list users and their last login times
 list_users() {
     local users_output
-    users_output=$(lastlog | awk 'NR>1 {if ($3 != "**Never logged in**") printf "%s\t%s %s %s %s\n", $1, $3, $4, $5, $6}')
+    users_output=$(lastlog | awk 'NR>1 {if ($3 == "**Never") printf "%s\tNever logged in\n", $1; else printf "%s\t%s %s %s %s\n", $1, $3, $4, $5, $6}')
 
     if [[ -z "$users_output" ]]; then
-        printf "No users with login records found.\n"
+        printf "No users found.\n"
     else
         printf "%s\n" "$users_output" | python3 "$PYTHON_FORMATTER" users
     fi
@@ -225,7 +225,8 @@ user_info() {
     local username=$1
     local user_output
 
-    user_output=$(lastlog | awk -v user="$username" '$1 == user {if ($3 != "**Never logged in**") printf "%s\t%s %s %s %s\n", $1, $3, $4, $5, $6}')
+    # Extract the user information from lastlog
+    user_output=$(lastlog | awk -v user="$username" '$1 == user {if ($3 == "**Never") printf "%s\tNever logged in\n", $1; else printf "%s\t%s %s %s %s\n", $1, $3, $4, $5, $6}')
 
     if [[ -z "$user_output" ]]; then
         printf "No login record found for user: %s\n" "$username"
