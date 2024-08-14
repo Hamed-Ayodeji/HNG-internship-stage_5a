@@ -189,22 +189,22 @@ docker_info() {
 display_nginx_domains() {
     find "$NGINX_CONF_DIR" -type f ! -name "*.bak" | while read -r file; do
         awk -v file="$file" '
-        BEGIN {proxy="<No Proxy>"}
+        BEGIN {proxy="<No Proxy>"; domain=""}
         !/^#/ && $0 != "" {
             if ($1 == "server_name") {
-                domains=$0
-                sub(/^server_name /, "", domains)
-                sub(/;$/, "", domains)
+                domain=$0
+                sub(/^server_name /, "", domain)
+                sub(/;$/, "", domain)
             }
             if ($1 == "proxy_pass") {
                 proxy=$2
             }
-            if ($0 ~ /}/ && domains != "") {
-                split(domains, domain_arr, " ")
-                for (domain in domain_arr) {
-                    printf "%s\t%s\t%s\n", domain_arr[domain], proxy, file
+            if ($0 ~ /}/ && domain != "") {
+                split(domain, domain_arr, " ")
+                for (d in domain_arr) {
+                    printf "%s\t%s\t%s\n", domain_arr[d], proxy, file
                 }
-                domains=""
+                domain=""
                 proxy="<No Proxy>"
             }
         }' "$file"
@@ -232,12 +232,20 @@ nginx_info() {
         !/^#/ && $0 != "" {
             if ($1 == "server_name" && index($0, domain) > 0) {
                 domain_found=1
+                domains=$0
+                sub(/^server_name /, "", domains)
+                sub(/;$/, "", domains)
             }
             if (domain_found && $1 == "proxy_pass") {
                 proxy=$2
             }
             if (domain_found && $0 ~ /}/) {
-                printf "%s\t%s\t%s\n", domain, proxy, file
+                split(domains, domain_arr, " ")
+                for (d in domain_arr) {
+                    if (domain == domain_arr[d]) {
+                        printf "%s\t%s\t%s\n", domain, proxy, file
+                    }
+                }
                 domain_found=0
                 proxy="<No Proxy>"
             }
