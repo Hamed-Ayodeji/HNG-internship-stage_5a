@@ -39,6 +39,20 @@ def format_docker_info(data):
     else:
         print("No details found for the specified Docker container.")
 
+def format_nginx_domains(data):
+    rows = []
+    headers = ["DOMAIN", "PROXY", "CONFIGURATION FILE"]
+
+    # Assuming data is passed in a specific format, split it into lines
+    for line in data.splitlines():
+        domain, proxy, config_file = line.split("\t")
+        rows.append([domain, proxy, config_file])
+
+    if rows:
+        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
+    else:
+        print("No Nginx domains found.")
+
 def format_users(data):
     headers = ["USERNAME", "LAST LOGIN"]
     rows = [line.split('\t', 1) for line in data.strip().split('\n')]
