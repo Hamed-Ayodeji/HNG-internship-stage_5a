@@ -187,7 +187,7 @@ docker_info() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk '!/^#/ && $0 != ""' | while read -r line; do
+    find "$NGINX_CONF_DIR" -type f ! -name "*.bak" -exec grep -H "server_name" {} \; | awk '!/^#/ && $0 != ""' | while read -r line; do
         file=$(echo "$line" | awk -F: '{print $1}')
         domains=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/server_name //; s/;$//')
         proxy=$(grep -m1 "proxy_pass" "$file" | awk '!/^#/ && $0 != "" {print $2}')
