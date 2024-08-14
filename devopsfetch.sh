@@ -2,8 +2,8 @@
 
 # Ensure the script is run as root
 if [[ "$(id -u)" -ne 0 ]]; then
-  sudo -E "$0" "$@"
-  exit
+    sudo -E "$0" "$@"
+    exit
 fi
 
 # Path to the Python formatting script
@@ -108,8 +108,13 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    netstat -tulnp | grep ":${port}\b" | awk '{printf "%s %s %s\n", $1, $4, ($7 ? $7 : "-")}' | python3 "$PYTHON_FORMATTER" ports
+    netstat -tulnp | grep ":${port}\b" | awk '{
+        split($7, proc, "/"); 
+        split($4, addr, ":"); 
+        printf "%s %s:%s %s %s\n", $1, addr[1], addr[2], (proc[1] ? proc[1] : "-"), (proc[2] ? proc[2] : "-")
+    }' | python3 "$PYTHON_FORMATTER" ports
 }
+
 
 # Function to list Docker images
 display_docker_images() {
