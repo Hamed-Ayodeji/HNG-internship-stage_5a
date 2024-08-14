@@ -185,10 +185,13 @@ docker_info() {
     echo "$container_details" | awk '{printf "%s\t%s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
 }
 
-# Function to display Nginx domains and their ports
+# Function to display Nginx domains and their configuration files
 display_nginx_domains() {
     find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | while IFS=: read -r file line; do
         domain=$(echo "$line" | awk '{print $2}')
+        if [[ -z "$domain" ]]; then
+            domain="<No Domain>"
+        fi
         proxy=$(grep -m 1 "proxy_pass" "$file" | awk '{print $2}')
         proxy=${proxy:-"<No Proxy>"}
         printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
@@ -208,8 +211,10 @@ nginx_info() {
     /server_name/ {domain=$2}
     /proxy_pass/ {proxy=$2}
     END {
-        proxy=proxy ? proxy : "<No Proxy>";
-        printf "%s\t%s\t%s\n", domain, proxy, file
+        if (domain != "") {
+            proxy=proxy ? proxy : "<No Proxy>";
+            printf "%s\t%s\t%s\n", domain, proxy, file
+        }
     }' | python3 "$PYTHON_FORMATTER" nginx
 }
 
