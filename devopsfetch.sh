@@ -202,7 +202,9 @@ display_nginx_domains() {
             if ($0 ~ /}/ && domains != "") {
                 split(domains, domain_arr, " ")
                 for (d in domain_arr) {
-                    printf "%s\t%s\t%s\n", domain_arr[d], proxy, file
+                    if (domain_arr[d] != "server_name") {
+                        printf "%s\t%s\t%s\n", domain_arr[d], proxy, file
+                    }
                 }
                 domains=""
                 proxy="<No Proxy>"
