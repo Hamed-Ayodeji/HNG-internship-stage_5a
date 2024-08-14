@@ -236,7 +236,7 @@ nginx_info() {
 
     # If output.txt is not empty, print the contents and format them
     if [[ -s output.txt ]]; then
-        cat output.txt | python3 "$PYTHON_FORMATTER" nginx
+        sort -u output.txt | python3 "$PYTHON_FORMATTER" nginx
         rm -f output.txt
     else
         printf "No configuration found for domain: %s\n" "$domain_name"
