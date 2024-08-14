@@ -187,12 +187,14 @@ docker_info() {
 
 # Function to display Nginx domains and their ports
 display_nginx_domains() {
-    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | while read -r line; do
+    find "$NGINX_CONF_DIR" -type f -exec grep -H "server_name" {} \; | awk '!/^#/ && $0 != ""' | while read -r line; do
         file=$(echo "$line" | awk -F: '{print $1}')
-        domain=$(echo "$line" | awk -F' ' '{print $2}')
-        proxy=$(grep "proxy_pass" "$file" | awk -F' ' '{print $2}')
+        domains=$(echo "$line" | awk '{$1=""; print $0}' | sed 's/server_name //; s/;$//')
+        proxy=$(grep -m1 "proxy_pass" "$file" | awk '!/^#/ && $0 != "" {print $2}')
         [[ -z "$proxy" ]] && proxy="<No Proxy>"
-        printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
+        for domain in $domains; do
+            printf "%s\t%s\t%s\n" "$domain" "$proxy" "$file"
+        done
     done | sort | uniq | python3 "$PYTHON_FORMATTER" nginx
 }
 
@@ -206,13 +208,7 @@ nginx_info() {
         return
     fi
 
-    grep -E "server_name|proxy_pass" "$config_file" | awk -v file="$config_file" '
-    /server_name/ {domain=$2}
-    /proxy_pass/ {proxy=$2}
-    END {
-        if (!proxy) proxy="<No Proxy>"
-        printf "%s\t%s\t%s\n", domain, proxy, file
-    }' | python3 "$PYTHON_FORMATTER" nginx
+    grep -E "server_name|proxy_pass" "$config_file" | awk '!/^#/ && $0 != "" {if ($1 == "server_name") domain=$2; if ($1 == "proxy_pass") proxy=$2} END {if (!proxy) proxy="<No Proxy>"; printf "%s\t%s\t%s\n", domain, proxy, FILENAME}' | python3 "$PYTHON_FORMATTER" nginx
 }
 
 # Function to list users and their last login times
