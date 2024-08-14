@@ -5,10 +5,7 @@ from tabulate import tabulate
 def format_ports_list(data):
     headers = ["PORT", "PROTOCOL", "SERVICE"]
     rows = [line.split() for line in data.strip().split('\n')]
-    if rows:
-        print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
-    else:
-        print("No active ports found.")
+    print(tabulate(rows, headers, tablefmt="grid", colalign=("left", "left", "left")))
 
 def format_port_info(data):
     headers = ["PROTOCOL", "PORT", "IP", "PID", "SERVICE"]

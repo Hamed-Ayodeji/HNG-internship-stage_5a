@@ -114,14 +114,23 @@ port_info() {
     local port=$1
     validate_port "$port" || return 1
 
-    netstat -tulnp | grep ":${port}\b" | awk '$1 != "tcp6" && $1 != "udp6" {
+    # Capture the netstat output
+    local output
+    output=$(netstat -tulnp | grep ":${port}\b" | awk '$1 != "tcp6" && $1 != "udp6" {
         split($7, proc, "/");
         split($4, addr, ":");
         ip = (addr[1] ? addr[1] : "-");
         pid = (proc[1] ? proc[1] : "-");
         service = (proc[2] ? proc[2] : "-");
         printf "%s %s %s %s %s\n", $1, addr[2], ip, pid, service;
-    }' | python3 "$PYTHON_FORMATTER" port_info
+    }')
+
+    # Check if output is empty
+    if [[ -z "$output" ]]; then
+        printf "No service is using the specified port.\n"
+    else
+        printf "%s\n" "$output" | python3 "$PYTHON_FORMATTER" port_info
+    fi
 }
 
 # Function to list Docker images
