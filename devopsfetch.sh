@@ -202,6 +202,7 @@ display_nginx_domains() {
 nginx_info() {
     local domain_name=$1
     local config_files
+    local found=false
 
     # Find all configuration files containing the specified domain
     config_files=$(grep -irl "server_name.*$domain_name" "$NGINX_CONF_DIR")
@@ -214,11 +215,10 @@ nginx_info() {
     # Loop through each file to gather relevant information
     for config_file in $config_files; do
         grep -E "server_name|proxy_pass" "$config_file" | awk -v domain="$domain_name" -v file="$config_file" '
+        BEGIN { proxy="<No Proxy>"; domain_found=0 }
         !/^#/ && $0 != "" {
-            if ($1 == "server_name") {
-                if (index($0, domain) > 0) {
-                    domain_found=1
-                }
+            if ($1 == "server_name" && index($0, domain) > 0) {
+                domain_found=1
             }
             if (domain_found && $1 == "proxy_pass") {
                 proxy = $2
@@ -226,11 +226,23 @@ nginx_info() {
         }
         END {
             if (domain_found) {
-                if (!proxy) proxy="<No Proxy>"
                 printf "%s\t%s\t%s\n", domain, proxy, file
             }
-        }'
-    done | python3 "$PYTHON_FORMATTER" nginx
+        }' | while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                printf "%s\n" "$line"
+                found=true
+            fi
+        done
+    done
+
+    # If no domain was found, print a message
+    if [[ "$found" == false ]]; then
+        printf "No configuration found for domain: %s\n" "$domain_name"
+    else
+        # If domains were found, pass them to the formatter
+        printf "%s\n" "$output" | python3 "$PYTHON_FORMATTER" nginx
+    fi
 }
 
 # Function to list users and their last login times
