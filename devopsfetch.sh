@@ -93,7 +93,7 @@ display_help() {
     printf "  You can customize DevOpsFetch's behavior by creating a configuration file at /etc/devopsfetch.conf.\n"
     printf "  Example configuration options:\n"
     printf "  LOGFILE='/var/log/devopsfetch.log'\n"
-    printf "  TIME_FORMAT='%Y-%m-%d %H:%M:%S'\n"
+    printf "  TIME_FORMAT='%%Y-%%m-%%d %%H:%%M:%%S'\n"
     printf "  LOG_LEVEL='INFO'\n"
     printf "\n"
 }
