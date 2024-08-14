@@ -149,7 +149,7 @@ display_docker_images() {
 # Function to list Docker containers
 display_docker_containers() {
     local containers_output
-    containers_output=$(docker ps --format "{{.Names}} {{.Image}} {{.Status}} {{.Ports}}" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, ($4 ? $4 : "None")}')
+    containers_output=$(docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | awk '{printf "%s\t%s\t%s\t%s\n", $1, $2, $3, ($4 ? $4 : "None")}')
 
     if [[ -z "$containers_output" ]]; then
         printf "No running Docker containers found.\n"
@@ -164,6 +164,12 @@ docker_info() {
     local container_name=$1
     local container_details
 
+    # Check if the container exists
+    if ! docker inspect "$container_name" > /dev/null 2>&1; then
+        printf "No details found for Docker container: %s\n" "$container_name"
+        return
+    fi
+
     container_details=$(docker inspect "$container_name" 2>/dev/null | jq -r '.[0] | {
         "Name": (.Name | ltrimstr("/")),
         "Image": .Config.Image,
@@ -171,11 +177,7 @@ docker_info() {
         "Ports": (if (.NetworkSettings.Ports | length) > 0 then (.NetworkSettings.Ports | to_entries | map(.key) | join(", ")) else "None" end)
     } | to_entries | map([.key, .value]) | .[] | @tsv')
 
-    if [[ -z "$container_details" ]]; then
-        printf "No details found for Docker container: %s\n" "$container_name"
-    else
-        echo "$container_details" | awk '{printf "%s\t%s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
-    fi
+    echo "$container_details" | awk '{printf "%s\t%s\n", $1, $2}' | python3 "$PYTHON_FORMATTER" docker_info
 }
 
 # Function to display Nginx domains and their ports
